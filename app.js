@@ -13,6 +13,9 @@ let state = {
     panX: 0,
     panY: 0,
     previews: {}, // filename -> blob url (lightweight version)
+    renderQueue: [], // files waiting to be rendered
+    isRenderingBackground: false,
+    directoryHandle: null, // stored handle for folder export
 };
 
 // --- DOM Elements ---
@@ -35,6 +38,8 @@ const elements = {
     resChoice: document.getElementById('res-choice'),
     qualityNum: document.getElementById('quality-num'),
     methodHint: document.getElementById('method-hint'),
+    selectedPath: document.getElementById('selected-path'),
+    mainExportBtn: document.getElementById('main-export-btn'),
 };
 
 // --- Initialization ---
@@ -74,6 +79,7 @@ function setupEventListeners() {
     // Gestures (HammerJS)
     const hammer = new Hammer(document.getElementById('culling-page'));
     hammer.get('pan').set({ direction: Hammer.DIRECTION_ALL });
+    hammer.get('pinch').set({ enable: true }); // Aktifkan pinch
 
     hammer.on('swipeleft', (e) => {
         if (state.zoomLevel === 1) navigatePhoto(1);
@@ -101,6 +107,27 @@ function setupEventListeners() {
             state.panY = lastPanY + e.deltaY;
             applyZoom(true);
         }
+    });
+
+    // Pinch Zoom Logic
+    let startScale = 1;
+
+    hammer.on('pinchstart', (e) => {
+        startScale = state.zoomLevel;
+    });
+
+    hammer.on('pinchmove', (e) => {
+        state.zoomLevel = Math.max(1, Math.min(5, startScale * e.scale));
+        applyZoom(true);
+    });
+
+    hammer.on('pinchend', (e) => {
+        if (state.zoomLevel < 1.1) {
+            state.zoomLevel = 1;
+            state.panX = 0;
+            state.panY = 0;
+        }
+        applyZoom();
     });
 
     // Keyboard Shortcuts
@@ -154,31 +181,58 @@ async function handleFileUpload(e) {
     const files = Array.from(e.target.files).filter(f => f.type === 'image/jpeg');
     if (files.length > 0) {
         state.rawFiles = files;
-
-        // Show processing overlay
-        showProcessing(true, `Menyiapkan ${files.length} foto...`);
+        state.renderQueue = [...files];
 
         // Clear old previews
         Object.values(state.previews).forEach(url => URL.revokeObjectURL(url));
         state.previews = {};
 
-        // Generate fast previews (1280px is enough for culling screen)
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const previewBlob = await processImage(file, 1280, 0.7); // Light & Fast
-            state.previews[file.name] = URL.createObjectURL(previewBlob);
+        // 1. Render first 10 photos immediately to "Instant Start"
+        const initialBatch = 10;
+        showProcessing(true, `Menyiapkan foto awal (1/${Math.min(initialBatch, files.length)})...`);
 
-            if (i % 5 === 0) {
-                showProcessing(true, `Rendering: ${i + 1}/${files.length}`);
-            }
+        for (let i = 0; i < Math.min(initialBatch, files.length); i++) {
+            const file = files[i];
+            await renderSinglePreview(file);
+            showProcessing(true, `Menyiapkan foto awal (${i + 1}/${initialBatch})...`);
         }
 
+        // 2. Go to Culling Screen FAST
         showProcessing(false);
         state.view = 'CULLING';
         state.currentIndex = 0;
         showPhoto(0);
         updateUI();
+
+        // 3. Start Background Rendering for the rest
+        startBackgroundRendering();
     }
+}
+
+async function renderSinglePreview(file) {
+    if (state.previews[file.name]) return state.previews[file.name];
+    const previewBlob = await processImage(file, 1280, 0.7);
+    const url = URL.createObjectURL(previewBlob);
+    state.previews[file.name] = url;
+    return url;
+}
+
+async function startBackgroundRendering() {
+    if (state.isRenderingBackground) return;
+    state.isRenderingBackground = true;
+
+    for (let i = 0; i < state.rawFiles.length; i++) {
+        const file = state.rawFiles[i];
+        if (!state.previews[file.name]) {
+            await renderSinglePreview(file);
+            // Optional: Update a small progress indicator in header
+            elements.stepTitle.innerText = `Kurasi (${state.currentIndex + 1}/${state.rawFiles.length}) • Render: ${Math.round((Object.keys(state.previews).length / state.rawFiles.length) * 100)}%`;
+            // Give CPU a tiny break
+            await new Promise(r => setTimeout(r, 10));
+        }
+    }
+    state.isRenderingBackground = false;
+    elements.stepTitle.innerText = `Kurasi (${state.currentIndex + 1}/${state.rawFiles.length})`;
 }
 
 function showProcessing(show, text = "") {
@@ -213,12 +267,17 @@ async function showPhoto(index) {
     applyZoom();
 
     const file = state.rawFiles[index];
-    const previewUrl = state.previews[file.name];
+    let previewUrl = state.previews[file.name];
 
-    // Use the lightweight preview for culling to keep it fast
+    // If background render hasn't reached this photo yet, render it NOW
+    if (!previewUrl) {
+        elements.exifInfo.innerText = "Prioritizing render for this photo...";
+        previewUrl = await renderSinglePreview(file);
+    }
+
     elements.viewImg.src = previewUrl;
     elements.fileInfo.innerText = file.name;
-    elements.stepTitle.innerText = `Kurasi (${index + 1}/${state.rawFiles.length})`;
+    elements.stepTitle.innerText = `Kurasi (${index + 1}/${state.rawFiles.length}) ${state.isRenderingBackground ? '• ⚡' : ''}`;
 
     updateRatingUI(state.ratings[file.name] || 0);
     loadExif(file);
@@ -381,13 +440,24 @@ async function executeExport(btn) {
     btn.innerText = "Processing...";
     btn.disabled = true;
 
+    const selectedCount = state.selectedForExport.size;
+    let current = 0;
+
     try {
-        if (method === 'folder' && 'showDirectoryPicker' in window) {
-            const handle = await window.showDirectoryPicker();
-            const newFolder = await handle.getDirectoryHandle(folderName, { create: true });
+        if (method === 'folder') {
+            if (!('showDirectoryPicker' in window)) {
+                throw new Error("Browser lu ga support akses folder langsung. Pake metode ZIP ya, bro.");
+            }
+
+            state.directoryHandle = await window.showDirectoryPicker();
+            elements.selectedPath.innerText = "Target: " + state.directoryHandle.name + " / " + folderName;
+
+            const newFolder = await state.directoryHandle.getDirectoryHandle(folderName, { create: true });
 
             for (let file of state.rawFiles) {
                 if (state.selectedForExport.has(file.name)) {
+                    current++;
+                    btn.innerText = `Saving ${current}/${selectedCount}...`;
                     const blob = await processImage(file, resSize, quality);
                     const fileHandle = await newFolder.getFileHandle(file.name, { create: true });
                     const writer = await fileHandle.createWritable();
@@ -404,30 +474,36 @@ async function executeExport(btn) {
             const filesToShare = [];
             for (let file of state.rawFiles) {
                 if (state.selectedForExport.has(file.name)) {
+                    current++;
+                    btn.innerText = `Processing ${current}/${selectedCount}...`;
                     const blob = await processImage(file, resSize, quality);
-                    const sharedFile = new File([blob], file.name, { type: 'image/jpeg' });
-                    filesToShare.push(sharedFile);
+                    filesToShare.push(new File([blob], file.name, { type: 'image/jpeg' }));
                 }
             }
 
-            if (filesToShare.length > 30) {
-                const confirmShare = confirm("Lu mau kirim " + filesToShare.length + " foto sekaligus? WhatsApp mungkin bakal nge-lag. Lanjut?");
-                if (!confirmShare) {
-                    btn.innerText = originalText;
-                    btn.disabled = false;
-                    return;
-                }
-            }
+            // STEP BARU: Munculin tombol konfirmasi akhir buat menipu browser (User Gesture)
+            btn.innerText = "KIRIM KE WA SEKARANG ✅";
+            btn.style.background = "#25D366";
+            btn.disabled = false;
 
-            if (navigator.canShare && navigator.canShare({ files: filesToShare })) {
-                await navigator.share({
-                    files: filesToShare,
-                    title: 'Hasil Seleksi - PhotoCull Pro',
-                    text: 'Cek hasil kurasi foto gua, bro!'
-                });
-            } else {
-                throw new Error("File kegedean atau format ga dukung buat share langsung. Coba kirim dikit-dikit atau pake ZIP.");
-            }
+            // Re-bind onclick untuk Share sesungguhnya
+            btn.onclick = async () => {
+                try {
+                    await navigator.share({
+                        files: filesToShare,
+                        title: 'Hasil Seleksi - PhotoCull Pro',
+                        text: 'Cek hasil seleksi foto gua, bro!'
+                    });
+                    closeExport();
+                } catch (e) {
+                    alert("Kirim Gagal. Coba pilih dikit aja fotonya.");
+                } finally {
+                    elements.mainExportBtn.onclick = () => executeExport(elements.mainExportBtn);
+                    elements.mainExportBtn.style.background = "var(--accent)";
+                    elements.mainExportBtn.innerText = "Render";
+                }
+            };
+            return; // Tunggu klik manual user 
         } else {
             const zip = new JSZip();
             for (let file of state.rawFiles) {

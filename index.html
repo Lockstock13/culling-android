@@ -110,6 +110,9 @@
             <div class="option-group">
                 <label>Nama Unit / Folder</label>
                 <input type="text" id="folder-name" value="Seleksi_Klien">
+                <div id="selected-path"
+                    style="font-size: 10px; color: var(--accent); margin-top: 5px; opacity: 0.8; word-break: break-all;">
+                </div>
             </div>
 
             <div class="option-group">
@@ -140,7 +143,8 @@
             <div style="display:flex; gap:10px; margin-top: 10px;">
                 <button class="btn-main" style="background:#333; color:white; flex:1"
                     onclick="closeExport()">Batal</button>
-                <button class="btn-main" style="flex:1" onclick="executeExport(this)">Render</button>
+                <button id="main-export-btn" class="btn-main" style="flex:1"
+                    onclick="executeExport(this)">Render</button>
             </div>
         </div>
     </div>
