@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>PhotoCull Pro</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1c1c1e">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Libraries -->
+    <script src="https://unpkg.com/hammerjs@2.0.8/hammer.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+</head>
+
+<body>
+
+    <header>
+        <div class="nav-left">
+            <button id="btn-back" class="btn-back" onclick="goBack()">← Kembali</button>
+            <span id="step-title">Import</span>
+        </div>
+        <div id="header-actions">
+            <button class="btn-main" id="btn-next" onclick="handleMainAction()"
+                style="padding: 6px 15px; font-size: 14px;">Next</button>
+        </div>
+    </header>
+
+    <!-- Page: Import -->
+    <div id="import-page" class="page active">
+        <div class="import-card">
+            <span class="import-icon">📸</span>
+            <h2>PhotoCull Pro</h2>
+            <p style="color: var(--text-dim); margin-bottom: 30px;">
+                Culling kilat hasil jepretan 5D Mark III lu langsung di HP/PC.
+            </p>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button class="btn-main" onclick="document.getElementById('file-input').click()">Pilih Foto</button>
+                <button class="btn-main" style="background: #333; color: white;"
+                    onclick="document.getElementById('folder-input').click()">Pilih Folder</button>
+            </div>
+            <input type="file" id="file-input" multiple accept="image/jpeg" style="display: none;">
+            <input type="file" id="folder-input" webkitdirectory directory style="display: none;">
+        </div>
+    </div>
+
+    <!-- Page: Culling -->
+    <div id="culling-page" class="page">
+        <div class="photo-viewport">
+            <img id="view-img" src="" alt="Culling View">
+        </div>
+        <div class="photo-overlay">
+            <div class="photo-meta">
+                <div id="view-filename" class="photo-filename">Filename.jpg</div>
+                <div id="view-exif" class="photo-exif">Loading EXIF...</div>
+            </div>
+            <div class="rating-pills" id="rating-container">
+                <div class="pill" onclick="setRating(1)">1</div>
+                <div class="pill" onclick="setRating(2)">2</div>
+                <div class="pill" onclick="setRating(3)">3</div>
+                <div class="pill" onclick="setRating(4)">4</div>
+                <div class="pill" onclick="setRating(5)">5</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page: Selection / Preview -->
+    <div id="preview-page" class="page">
+        <div class="filter-header">
+            <span class="filter-label">Filter Rating</span>
+            <div class="filter-bar">
+                <button class="filter-pill active" onclick="setFilter(0)">Semua</button>
+                <button class="filter-pill" onclick="setFilter(1)">⭐ 1</button>
+                <button class="filter-pill" onclick="setFilter(2)">⭐ 2</button>
+                <button class="filter-pill" onclick="setFilter(3)">⭐ 3</button>
+                <button class="filter-pill" onclick="setFilter(4)">⭐ 4</button>
+                <button class="filter-pill" onclick="setFilter(5)">⭐ 5</button>
+            </div>
+        </div>
+
+        <div class="grid-container" id="grid-view"></div>
+
+        <div class="selection-controls">
+            <div style="display:flex; flex-direction:column; gap:2px">
+                <span id="filter-status" style="font-size: 16px; font-weight: 600;">0 Terpilih</span>
+                <span style="font-size: 11px; color: var(--text-dim);">Ketuk foto buat pilih</span>
+            </div>
+            <div style="display:flex; gap:10px">
+                <button onclick="toggleSelectAll()"
+                    style="background:#333; border:none; color:white; padding: 10px 15px; border-radius: 10px; font-size: 14px; font-weight: 500;">Pilih
+                    Semua</button>
+                <button onclick="handleMainAction()" class="btn-main" style="padding: 10px 25px;">Export</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Export -->
+    <div id="export-modal">
+        <div class="card">
+            <h3 style="margin:0 0 8px 0">Final Export</h3>
+            <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 24px;">Atur kualitas & folder tujuan.</p>
+
+            <div class="option-group">
+                <label>Nama Unit / Folder</label>
+                <input type="text" id="folder-name" value="Seleksi_Klien">
+            </div>
+
+            <div class="option-group">
+                <label>Metode Penyimpanan</label>
+                <select id="export-method" onchange="checkMethodSupport()">
+                    <option value="folder">Simpan ke Folder (Desktop Only)</option>
+                    <option value="zip">Download sebagai (.ZIP)</option>
+                    <option value="share">Kirim ke WhatsApp / Sosmed</option>
+                </select>
+                <div id="method-hint" style="font-size: 11px; color: #ffab00; margin-top: 6px; display: none;"></div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div class="option-group">
+                    <label>Resolusi</label>
+                    <select id="res-choice">
+                        <option value="2048">2048px (High)</option>
+                        <option value="1080">1080px (Standard)</option>
+                        <option value="original">Original Size</option>
+                    </select>
+                </div>
+                <div class="option-group">
+                    <label>Kualitas (%)</label>
+                    <input type="number" id="quality-num" value="85" min="10" max="100">
+                </div>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top: 10px;">
+                <button class="btn-main" style="background:#333; color:white; flex:1"
+                    onclick="closeExport()">Batal</button>
+                <button class="btn-main" style="flex:1" onclick="executeExport(this)">Render</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- App Engine -->
+    <script src="app.js"></script>
+
+    <!-- Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log("PhotoCull Engine: Active & Offline Ready"))
+                .catch((err) => console.log("SW Error", err));
+        }
+    </script>
+</body>
+
+</html>

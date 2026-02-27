@@ -1,0 +1,17 @@
+{
+    "name": "PhotoCull Pro",
+    "short_name": "PhotoCull",
+    "description": "Culling and Resize Photos Offline",
+    "start_url": "index.html",
+    "display": "standalone",
+    "background_color": "#000000",
+    "theme_color": "#1c1c1e",
+    "icons": [
+        {
+            "src": "https://cdn-icons-png.flaticon.com/512/1040/1040241.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}
