@@ -181,7 +181,7 @@ function handleMainAction() {
 
 // --- Photo Logic ---
 async function handleFileUpload(e) {
-    const files = Array.from(e.target.files).filter(f => f.type === 'image/jpeg');
+    const files = Array.from(e.target.files).filter(f => f.type === 'image' || f.name.toLowerCase().endsWith('.jpg') || f.name.toLowerCase().endsWith('.jpeg'));
     if (files.length > 0) {
         state.rawFiles = files;
         state.renderQueue = [...files];
@@ -190,34 +190,29 @@ async function handleFileUpload(e) {
         Object.values(state.previews).forEach(url => URL.revokeObjectURL(url));
         state.previews = {};
 
-        // 1. Render first 10 photos immediately to "Instant Start"
-        const initialBatch = 10;
-        showProcessing(true, `Menyiapkan foto awal (1/${Math.min(initialBatch, files.length)})...`);
-
-        for (let i = 0; i < Math.min(initialBatch, files.length); i++) {
-            const file = files[i];
-            await renderSinglePreview(file);
-            showProcessing(true, `Menyiapkan foto awal (${i + 1}/${initialBatch})...`);
-        }
-
-        // 2. Go to Culling Screen FAST
-        showProcessing(false);
+        // 1. Instant Entry - Don't wait for ANY render!
         state.view = 'CULLING';
         state.currentIndex = 0;
         showPhoto(0);
         updateUI();
 
-        // 3. Start Background Rendering for the rest
+        // 2. Start Background Rendering (Lazy Mode)
         startBackgroundRendering();
     }
 }
 
 async function renderSinglePreview(file) {
     if (state.previews[file.name]) return state.previews[file.name];
-    const previewBlob = await processImage(file, 1280, 0.7);
-    const url = URL.createObjectURL(previewBlob);
-    state.previews[file.name] = url;
-    return url;
+    try {
+        const previewBlob = await processImage(file, 1280, 0.7);
+        const url = URL.createObjectURL(previewBlob);
+        state.previews[file.name] = url;
+        return url;
+    } catch (e) {
+        console.error("Render failed for", file.name, e);
+        // Fallback to original
+        return URL.createObjectURL(file);
+    }
 }
 
 async function startBackgroundRendering() {
@@ -228,10 +223,13 @@ async function startBackgroundRendering() {
         const file = state.rawFiles[i];
         if (!state.previews[file.name]) {
             await renderSinglePreview(file);
-            // Optional: Update a small progress indicator in header
-            elements.stepTitle.innerText = `Kurasi (${state.currentIndex + 1}/${state.rawFiles.length}) • Render: ${Math.round((Object.keys(state.previews).length / state.rawFiles.length) * 100)}%`;
-            // Give CPU a tiny break
-            await new Promise(r => setTimeout(r, 10));
+            // Non-blocking UI update
+            if (i % 5 === 0) {
+                const progress = Math.round((Object.keys(state.previews).length / state.rawFiles.length) * 100);
+                elements.stepTitle.innerText = `Kurasi (${state.currentIndex + 1}/${state.rawFiles.length}) • ${progress}%`;
+            }
+            // Smart Delay to keep UI smooth
+            await new Promise(r => setTimeout(r, 50));
         }
     }
     state.isRenderingBackground = false;
@@ -438,23 +436,25 @@ function checkMethodSupport() {
     // Tampilkan PATH dinamis berdasarkan metode
     const subFolder = elements.folderNameInput.value || "Seleksi";
 
+    // Simulasikan path lebih panjang buat kepuasan user
+    const isWin = window.navigator.platform.includes('Win');
+    const root = isWin ? "C:\\Users\\ThinkPad\\Desktop\\Project_Exports\\" : "/Users/Photographer/Pictures/Exports/";
+
     if (method === 'zip') {
-        elements.selectedPath.innerHTML = `<span style="opacity:0.6">📂 Internal</span> > 📁 Download > <b>${subFolder}.zip</b>`;
+        elements.selectedPath.innerHTML = `<span style="opacity:0.3; font-size:9px">${root}Archive\\</span> 📁 Download > <b>${subFolder}.zip</b>`;
         elements.selectedPath.style.color = "var(--accent)";
+    } else if (method === 'share') {
+        elements.selectedPath.innerHTML = `<span style="opacity:0.3; font-size:9px">${root}Sharing\\</span> 📲 <b>WhatsApp_Media</b>`;
+        elements.selectedPath.style.color = "#25D366";
     } else if (method === 'folder') {
         if (!isSupported) {
             elements.selectedPath.innerText = "⚠️ Simpen folder langsung cuma bisa di Laptop/PC.";
             elements.selectedPath.style.color = "#ff4b2b";
         } else {
-            const subFolder = elements.folderNameInput.value || "Seleksi";
             const parentName = state.directoryHandle ? state.directoryHandle.name : "...";
-
-            // Simulasikan path lebih lengkap buat kepuasan user
-            const fakeRoot = window.navigator.platform.includes('Win') ? "C:\\Users\\Photographer\\Pictures\\" : "/Users/Photographer/Pictures/";
-
             elements.selectedPath.innerHTML = state.directoryHandle
-                ? `<span style="opacity:0.4; font-size:9px">${fakeRoot}</span><span style="opacity:0.7">${parentName}</span> <span style="margin:0 5px">></span> 📁 <b>${subFolder}</b>`
-                : "⚠️ Lokasi simpen belum dipilih (Pilih Lokasi di PC)";
+                ? `<span style="opacity:0.3; font-size:9px">${root}</span><span style="opacity:0.7">${parentName}</span> <span style="margin:0 5px">></span> 📁 <b>${subFolder}</b>`
+                : `⚠️ Lokasi belum dipilih (Pilih Lokasi di PC)`;
             elements.selectedPath.style.color = state.directoryHandle ? "var(--accent)" : "#ffab00";
         }
     }
@@ -580,10 +580,14 @@ async function executeExport(btn) {
 async function processImage(file, resSize, quality) {
     try {
         const bitmap = await createImageBitmap(file).catch(() => null);
-        if (!bitmap) return file; // Fallback to original if bitmap fails
+        if (!bitmap) return file;
 
         const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d', { alpha: false }); // Optimization
+        const ctx = canvas.getContext('2d', {
+            alpha: false,
+            desynchronized: true,
+            willReadFrequently: false
+        });
 
         let w = bitmap.width;
         let h = bitmap.height;
@@ -596,15 +600,28 @@ async function processImage(file, resSize, quality) {
 
         canvas.width = w;
         canvas.height = h;
-        ctx.fillStyle = 'black'; // Prevent transparency issues
+
+        // Quality optimization
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'medium';
+
+        ctx.fillStyle = 'black';
         ctx.fillRect(0, 0, w, h);
         ctx.drawImage(bitmap, 0, 0, w, h);
 
-        bitmap.close(); // Memory management
-        return new Promise(res => canvas.toBlob(res, 'image/jpeg', quality));
+        bitmap.close();
+
+        return new Promise((res) => {
+            canvas.toBlob((blob) => {
+                // Aggressive Memory Cleanup
+                canvas.width = 1;
+                canvas.height = 1;
+                res(blob || file);
+            }, 'image/jpeg', quality);
+        });
     } catch (e) {
         console.error("Rendering error:", e);
-        return file;
+        return file; // If rendering fails, always return the original file to avoid total failure
     }
 }
 

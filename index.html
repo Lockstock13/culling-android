@@ -47,8 +47,8 @@
                     onclick="document.getElementById('folder-input').click()">Pilih Folder</button>
             </div>
             <div style="margin-top: 30px; font-size: 11px; color: var(--text-dim); opacity: 0.6;">
-                PhotoCull Pro • v1.3.5-PRO-MOBILE<br>
-                Full Path Navigation & High-Performance Culling
+                PhotoCull Pro • v1.5.0-PRO-MOBILE<br>
+                Optimized Export Workflow & Pro Path Display
             </div>
             <input type="file" id="file-input" multiple accept="image/jpeg" style="display: none;">
             <input type="file" id="folder-input" webkitdirectory directory style="display: none;">
@@ -111,8 +111,18 @@
             <h3 style="margin:0 0 8px 0">Final Export</h3>
             <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 24px;">Atur kualitas & folder tujuan.</p>
 
+            <div class="option-group">
+                <label>Metode Penyimpanan</label>
+                <select id="export-method" onchange="checkMethodSupport()">
+                    <option value="folder">Simpan ke Folder (Desktop Only)</option>
+                    <option value="zip" selected>Download sebagai (.ZIP)</option>
+                    <option value="share">Kirim ke WhatsApp / Sosmed</option>
+                </select>
+                <div id="method-hint" style="font-size: 11px; color: #ffab00; margin-top: 6px; display: none;"></div>
+            </div>
+
             <div class="option-group" id="folder-config">
-                <label>Folder Tujuan</label>
+                <label>Nama Unit / Folder Tujuan</label>
                 <div style="display:flex; gap:8px;">
                     <input type="text" id="folder-name" value="Seleksi_Klien" style="flex:1">
                     <button id="btn-browse" class="btn-main" style="padding: 0 15px; font-size: 12px; display:none;"
@@ -122,16 +132,6 @@
                     style="font-size: 11px; color: var(--accent); margin-top: 6px; font-weight: 500; word-break: break-all;">
                     ⚠️ Lokasi simpen belum dipilih
                 </div>
-            </div>
-
-            <div class="option-group">
-                <label>Metode Penyimpanan</label>
-                <select id="export-method" onchange="checkMethodSupport()">
-                    <option value="folder">Simpan ke Folder (Desktop Only)</option>
-                    <option value="zip">Download sebagai (.ZIP)</option>
-                    <option value="share">Kirim ke WhatsApp / Sosmed</option>
-                </select>
-                <div id="method-hint" style="font-size: 11px; color: #ffab00; margin-top: 6px; display: none;"></div>
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
