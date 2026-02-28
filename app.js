@@ -501,24 +501,28 @@ async function executeExport(btn) {
 
             if (!state.directoryHandle) {
                 state.directoryHandle = await window.showDirectoryPicker();
-                elements.selectedPath.innerText = "Target: " + state.directoryHandle.name;
+                checkMethodSupport(); // Update path display
             }
 
-            const folderName = elements.folderNameInput.value || "Seleksi";
-            const newFolder = await state.directoryHandle.getDirectoryHandle(folderName, { create: true });
+            const actualFolderName = elements.folderNameInput.value || "Seleksi";
+            const newFolder = await state.directoryHandle.getDirectoryHandle(actualFolderName, { create: true });
 
             for (let file of state.rawFiles) {
                 if (state.selectedForExport.has(file.name)) {
                     current++;
-                    btn.innerText = `Saving ${current}/${selectedCount}...`;
-                    const blob = await processImage(file, resSize, quality);
-                    const fileHandle = await newFolder.getFileHandle(file.name, { create: true });
-                    const writer = await fileHandle.createWritable();
-                    await writer.write(blob);
-                    await writer.close();
+                    btn.innerText = `Render & Save ${current}/${selectedCount}...`;
+                    try {
+                        const blob = await processImage(file, resSize, quality);
+                        const fileHandle = await newFolder.getFileHandle(file.name, { create: true });
+                        const writer = await fileHandle.createWritable();
+                        await writer.write(blob);
+                        await writer.close();
+                    } catch (errInner) {
+                        console.error("Gagal save file:", file.name, errInner);
+                    }
                 }
             }
-            alert("BERHASIL! Semua foto masuk ke folder: " + folderName);
+            alert("BERHASIL! Semua foto masuk ke folder: " + actualFolderName);
         } else if (method === 'share') {
             if (!navigator.share) {
                 throw new Error("Browser/HP lu ga support fitur share langsung. Pake metode ZIP aja.");
@@ -528,18 +532,16 @@ async function executeExport(btn) {
             for (let file of state.rawFiles) {
                 if (state.selectedForExport.has(file.name)) {
                     current++;
-                    btn.innerText = `Processing ${current}/${selectedCount}...`;
+                    btn.innerText = `Render ${current}/${selectedCount}...`;
                     const blob = await processImage(file, resSize, quality);
                     filesToShare.push(new File([blob], file.name, { type: 'image/jpeg' }));
                 }
             }
 
-            // STEP BARU: Munculin tombol konfirmasi akhir buat menipu browser (User Gesture)
             btn.innerText = "KIRIM KE WA SEKARANG ✅";
             btn.style.background = "#25D366";
             btn.disabled = false;
 
-            // Re-bind onclick untuk Share sesungguhnya
             btn.onclick = async () => {
                 try {
                     await navigator.share({
@@ -556,21 +558,26 @@ async function executeExport(btn) {
                     elements.mainExportBtn.innerText = "Render";
                 }
             };
-            return; // Tunggu klik manual user 
+            return;
         } else {
+            if (typeof JSZip === 'undefined') throw new Error("Library ZIP belum ke-load. Tunggu sebentar atau refresh.");
+
             const zip = new JSZip();
             for (let file of state.rawFiles) {
                 if (state.selectedForExport.has(file.name)) {
+                    current++;
+                    btn.innerText = `Render ${current}/${selectedCount}...`;
                     const blob = await processImage(file, resSize, quality);
                     zip.file(file.name, blob);
                 }
             }
+            btn.innerText = "Generating ZIP...";
             const content = await zip.generateAsync({ type: "blob" });
             saveAs(content, `${folderName}.zip`);
         }
         closeExport();
     } catch (err) {
-        alert("Export Gagal: " + err.message);
+        alert("Eksport Bermasalah: " + err.message);
     } finally {
         btn.innerText = originalText;
         btn.disabled = false;
