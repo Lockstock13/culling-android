@@ -72,7 +72,7 @@ function setupEventListeners() {
                 showPhoto(0);
                 updateUI();
             } else {
-                alert("Cuma foto JPG yang bisa masuk sini, bro!");
+                showToast("Cuma foto JPG yang bisa masuk sini, bro!", "error");
             }
         }
     });
@@ -257,6 +257,7 @@ function showProcessing(show, text = "") {
 function navigatePhoto(dir) {
     const newIndex = state.currentIndex + dir;
     if (newIndex >= 0 && newIndex < state.rawFiles.length) {
+        if (navigator.vibrate) navigator.vibrate(10); // Subtle tick for photo change
         showPhoto(newIndex);
     }
 }
@@ -308,6 +309,11 @@ function setRating(val) {
     state.ratings[file.name] = val;
     updateRatingUI(val);
 
+    // Haptic feedback for rating
+    if (navigator.vibrate) {
+        navigator.vibrate(val > 0 ? 50 : 20); // Stronger tap for rating, light tap for un-rating
+    }
+
     // Auto advance if rating > 0
     if (val > 0 && state.currentIndex < state.rawFiles.length - 1) {
         setTimeout(() => navigatePhoto(1), 250);
@@ -355,10 +361,14 @@ function renderGrid() {
 
     if (filtered.length === 0) {
         const msg = state.currentFilter === 0 ? "Belum ada foto yang dirating." : `Ga ada foto bintang ⭐${state.currentFilter}.`;
-        elements.gridView.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:60px 20px; color:var(--text-dim)">
-            <div style="font-size:40px; margin-bottom:10px">📭</div>
-            <p>${msg}</p>
-        </div>`;
+        elements.gridView.innerHTML = `
+            <div style="grid-column:1/-1; text-align:center; padding:80px 20px; color:var(--text-dim); display:flex; flex-direction:column; align-items:center; opacity:0.6; animation: fadeIn 0.5s ease-out;">
+                <div style="font-size:50px; margin-bottom:16px; width:80px; height:80px; border-radius:50%; background: #2c2c2e; display:flex; align-items:center; justify-content:center; box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);">
+                    📭
+                </div>
+                <h4 style="color:#fff; margin:0 0 8px 0; font-weight:500;">Filter Kosong</h4>
+                <p style="margin:0; font-size:13px; line-height:1.5">${msg}</p>
+            </div>`;
         return;
     }
 
@@ -418,8 +428,31 @@ function updateFilterStatus() {
     elements.filterStatus.innerText = `${state.selectedForExport.size} Terpilih`;
 }
 
+// --- UI Utilities ---
+function showToast(message, type = 'success') {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerText = message;
+
+    container.appendChild(toast);
+
+    // Auto remove after 2.5s
+    setTimeout(() => {
+        toast.classList.add('hide');
+        toast.addEventListener('animationend', () => toast.remove());
+    }, 2500);
+}
+
 // --- Export Logic ---
 function showExportForm() {
+    if (navigator.vibrate) navigator.vibrate(30); // Pop feedback
     elements.exportModal.style.display = 'flex';
     checkMethodSupport();
 }
@@ -490,7 +523,7 @@ async function executeExport(btn) {
         quality = elements.qualityNum ? (elements.qualityNum.value / 100) : 0.85;
         folderName = (elements.folderNameInput && elements.folderNameInput.value) ? elements.folderNameInput.value : "Seleksi_PhotoCull";
 
-        if (state.selectedForExport.size === 0) return alert("Pilih fotonya dulu, bro!");
+        if (state.selectedForExport.size === 0) return showToast("Pilih fotonya dulu, bro!", "error");
 
         originalText = btn ? btn.innerText : "Render";
         if (btn) {
@@ -498,7 +531,7 @@ async function executeExport(btn) {
             btn.disabled = true;
         }
     } catch (setupError) {
-        return alert("CRASH SETUP (Tolong laporin): " + setupError.message);
+        return showToast("CRASH SETUP (Tolong laporin): " + setupError.message, "error");
     }
 
     const selectedCount = state.selectedForExport.size;
@@ -537,11 +570,11 @@ async function executeExport(btn) {
                         await writer.close();
                     } catch (errInner) {
                         console.error("Gagal save file:", file.name, errInner);
-                        alert(`Gagal nyimpen foto: ${file.name}`); // Explicit warning
+                        showToast(`Gagal nyimpen foto: ${file.name}`, "error");
                     }
                 }
             }
-            alert("BERHASIL! Semua foto masuk ke folder: " + actualFolderName);
+            showToast("BERHASIL! Semua foto masuk ke folder: " + actualFolderName, "success");
 
             // Cleanup UI for Folder
             btn.innerText = originalText;
@@ -585,8 +618,9 @@ async function executeExport(btn) {
                         text: 'Cek hasil seleksi foto gua, bro!'
                     });
                     closeExport();
+                    showToast("Share berhasil dibuka!", "success");
                 } catch (e) {
-                    alert("Share Batal/Gagal: " + e.message);
+                    showToast("Share batal/gagal dibuka.", "error");
                 } finally {
                     btn.onclick = () => executeExport(btn);
                     btn.style.background = "var(--accent)";
@@ -623,8 +657,10 @@ async function executeExport(btn) {
             btn.disabled = false;
         }
         closeExport();
+        // Toast for ZIP is slightly redundant since the browser shows download progress,
+        // but we can add a generic success here if needed.
     } catch (err) {
-        alert("Eksport Bermasalah: " + err.message);
+        showToast("Eksport Bermasalah: " + err.message, "error");
         btn.innerText = originalText;
         btn.disabled = false;
     }
