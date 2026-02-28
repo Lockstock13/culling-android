@@ -35,11 +35,11 @@ const elements = {
     exportModal: document.getElementById('export-modal'),
     folderNameInput: document.getElementById('folder-name'),
     exportMethod: document.getElementById('export-method'),
-    resChoice: document.getElementById('res-choice'),
     qualityNum: document.getElementById('quality-num'),
     methodHint: document.getElementById('method-hint'),
     selectedPath: document.getElementById('selected-path'),
     mainExportBtn: document.getElementById('main-export-btn'),
+    btnBrowse: document.getElementById('btn-browse'),
 };
 
 // --- Initialization ---
@@ -418,13 +418,44 @@ function checkMethodSupport() {
     const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
     const isSupported = 'showDirectoryPicker' in window;
 
+    // Show browse button ONLY for folder method on supported desktop
+    elements.btnBrowse.style.display = (method === 'folder' && isSupported) ? 'block' : 'none';
+
+    // Tampilkan PATH dinamis berdasarkan metode
+    if (method === 'zip') {
+        elements.selectedPath.innerText = "Target: Folder 'Downloads' di HP Lu 📥";
+        elements.selectedPath.style.color = "var(--accent)";
+    } else if (method === 'share') {
+        elements.selectedPath.innerText = "Target: Langsung Kirim ke WhatsApp 📲";
+        elements.selectedPath.style.color = "#25D366"; // WA Green
+    } else if (method === 'folder') {
+        if (!isSupported) {
+            elements.selectedPath.innerText = "⚠️ Android ga support pilih folder (pake ZIP/WA ya)";
+            elements.selectedPath.style.color = "#ff4b2b";
+        } else {
+            elements.selectedPath.innerText = state.directoryHandle
+                ? "Target: " + state.directoryHandle.name
+                : "⚠️ Lokasi simpen belum dipilih";
+            elements.selectedPath.style.color = state.directoryHandle ? "var(--accent)" : "#ffab00";
+        }
+    }
+
     if (method === 'folder' && !isSupported) {
         elements.methodHint.style.display = 'block';
         elements.methodHint.innerText = isSecure
-            ? "⚠️ Browser HP ga support pilih folder (pake ZIP aja)."
-            : "⚠️ Butuh HTTPS buat simpen langsung ke folder.";
+            ? "Pake Laptop/PC biar bisa simpen langsung ke folder."
+            : "Butuh koneksi aman (HTTPS) buat simpen ke folder.";
     } else {
         elements.methodHint.style.display = 'none';
+    }
+}
+
+async function pickExportFolder() {
+    try {
+        state.directoryHandle = await window.showDirectoryPicker();
+        elements.selectedPath.innerText = "Target: " + state.directoryHandle.name;
+    } catch (e) {
+        console.log("Pilih folder batal", e);
     }
 }
 
@@ -446,12 +477,15 @@ async function executeExport(btn) {
     try {
         if (method === 'folder') {
             if (!('showDirectoryPicker' in window)) {
-                throw new Error("Browser lu ga support akses folder langsung. Pake metode ZIP ya, bro.");
+                throw new Error("Pake browser PC (Chrome/Edge) biar bisa simpen ke folder.");
             }
 
-            state.directoryHandle = await window.showDirectoryPicker();
-            elements.selectedPath.innerText = "Target: " + state.directoryHandle.name + " / " + folderName;
+            if (!state.directoryHandle) {
+                state.directoryHandle = await window.showDirectoryPicker();
+                elements.selectedPath.innerText = "Target: " + state.directoryHandle.name;
+            }
 
+            const folderName = elements.folderNameInput.value || "Seleksi";
             const newFolder = await state.directoryHandle.getDirectoryHandle(folderName, { create: true });
 
             for (let file of state.rawFiles) {
@@ -465,7 +499,7 @@ async function executeExport(btn) {
                     await writer.close();
                 }
             }
-            alert("Selesai! Semua foto masuk ke folder: " + folderName);
+            alert("BERHASIL! Semua foto masuk ke folder: " + folderName);
         } else if (method === 'share') {
             if (!navigator.share) {
                 throw new Error("Browser/HP lu ga support fitur share langsung. Pake metode ZIP aja.");

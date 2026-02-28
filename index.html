@@ -46,6 +46,10 @@
                 <button class="btn-main" style="background: #333; color: white;"
                     onclick="document.getElementById('folder-input').click()">Pilih Folder</button>
             </div>
+            <div style="margin-top: 30px; font-size: 11px; color: var(--text-dim); opacity: 0.6;">
+                PhotoCull Pro • v1.2.5-PRO-MOBILE<br>
+                Instant Start & Pinch-to-Zoom Active
+            </div>
             <input type="file" id="file-input" multiple accept="image/jpeg" style="display: none;">
             <input type="file" id="folder-input" webkitdirectory directory style="display: none;">
         </div>
@@ -107,11 +111,16 @@
             <h3 style="margin:0 0 8px 0">Final Export</h3>
             <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 24px;">Atur kualitas & folder tujuan.</p>
 
-            <div class="option-group">
-                <label>Nama Unit / Folder</label>
-                <input type="text" id="folder-name" value="Seleksi_Klien">
+            <div class="option-group" id="folder-config">
+                <label>Folder Tujuan</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="text" id="folder-name" value="Seleksi_Klien" style="flex:1">
+                    <button id="btn-browse" class="btn-main" style="padding: 0 15px; font-size: 12px; display:none;"
+                        onclick="pickExportFolder()">Pilih Lokasi</button>
+                </div>
                 <div id="selected-path"
-                    style="font-size: 10px; color: var(--accent); margin-top: 5px; opacity: 0.8; word-break: break-all;">
+                    style="font-size: 11px; color: var(--accent); margin-top: 6px; font-weight: 500; word-break: break-all;">
+                    ⚠️ Lokasi simpen belum dipilih
                 </div>
             </div>
 
