@@ -635,16 +635,24 @@ async function processImage(file, resSize, quality) {
     try {
         if (resSize === 'original') return file;
 
-        // Try using createImageBitmap first (modern default)
+        // Try using createImageBitmap first (modern fast approach)
         let bitmap = null;
+        let imgWidth, imgHeight, imgSource;
+
         if (window.createImageBitmap) {
             bitmap = await createImageBitmap(file).catch(() => null);
         }
 
-        // Complete fallback logic (Old Android WebViews)
-        if (!bitmap) {
-            console.warn("createImageBitmap failed/unsupported. Halting down-res, returning original file.");
-            return file;
+        if (bitmap) {
+            imgWidth = bitmap.width;
+            imgHeight = bitmap.height;
+            imgSource = bitmap;
+        } else {
+            // FALLBACK: Classic Image Element (Bisa Resize & Compress di HP)
+            imgSource = await loadClassicImage(file);
+            if (!imgSource) return file; // Ultimate fallback if both fail
+            imgWidth = imgSource.width;
+            imgHeight = imgSource.height;
         }
 
         const canvas = document.createElement('canvas');
@@ -656,8 +664,8 @@ async function processImage(file, resSize, quality) {
             ctx = canvas.getContext('2d');
         }
 
-        let w = bitmap.width;
-        let h = bitmap.height;
+        let w = imgWidth;
+        let h = imgHeight;
 
         const max = parseInt(resSize);
         if (w > h && w > max) { h = (max / w) * h; w = max; }
@@ -669,10 +677,12 @@ async function processImage(file, resSize, quality) {
         if (ctx) {
             ctx.fillStyle = 'black';
             ctx.fillRect(0, 0, w, h);
-            ctx.drawImage(bitmap, 0, 0, w, h);
+            ctx.drawImage(imgSource, 0, 0, w, h);
         }
 
-        if (bitmap.close) bitmap.close();
+        // Clean up memory
+        if (bitmap && bitmap.close) bitmap.close();
+        if (!bitmap && imgSource.src) URL.revokeObjectURL(imgSource.src);
 
         return new Promise(res => {
             canvas.toBlob((blob) => {
@@ -687,6 +697,17 @@ async function processImage(file, resSize, quality) {
         console.error("Rendering error:", e);
         return file;
     }
+}
+
+// Utility: Classic Image Loader untuk Fallback Resize
+function loadClassicImage(file) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => resolve(img);
+        img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+        img.src = url;
+    });
 }
 
 // Helper for download
