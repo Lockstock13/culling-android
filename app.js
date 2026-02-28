@@ -482,21 +482,33 @@ async function pickExportFolder() {
 const yieldToMain = () => new Promise(resolve => setTimeout(resolve, 50));
 
 async function executeExport(btn) {
-    const method = elements.exportMethod.value;
-    const resSize = elements.resChoice.value;
-    const quality = elements.qualityNum.value / 100;
-    const folderName = elements.folderNameInput.value || "Seleksi_PhotoCull";
+    let method, resSize, quality, folderName, originalText;
 
-    if (state.selectedForExport.size === 0) return alert("Pilih fotonya dulu, bro!");
+    try {
+        method = elements.exportMethod ? elements.exportMethod.value : 'zip';
+        resSize = elements.resChoice ? elements.resChoice.value : 'original';
+        quality = elements.qualityNum ? (elements.qualityNum.value / 100) : 0.85;
+        folderName = (elements.folderNameInput && elements.folderNameInput.value) ? elements.folderNameInput.value : "Seleksi_PhotoCull";
 
-    const originalText = btn.innerText;
-    btn.innerText = "Processing...";
-    btn.disabled = true;
+        if (state.selectedForExport.size === 0) return alert("Pilih fotonya dulu, bro!");
+
+        originalText = btn ? btn.innerText : "Render";
+        if (btn) {
+            btn.innerText = "Mulai proses...";
+            btn.disabled = true;
+        }
+    } catch (setupError) {
+        return alert("CRASH SETUP (Tolong laporin): " + setupError.message);
+    }
 
     const selectedCount = state.selectedForExport.size;
     let current = 0;
 
     try {
+        if (!state.rawFiles || state.rawFiles.length === 0) {
+            throw new Error("Data foto ga kebaca. Ulangi masukin foto.");
+        }
+
         if (method === 'folder') {
             if (!('showDirectoryPicker' in window)) {
                 throw new Error("Pake browser PC (Chrome/Edge) biar bisa simpen ke folder.");
@@ -623,11 +635,26 @@ async function processImage(file, resSize, quality) {
     try {
         if (resSize === 'original') return file;
 
-        const bitmap = await createImageBitmap(file).catch(() => null);
-        if (!bitmap) return file; // Fallback to original if bitmap fails
+        // Try using createImageBitmap first (modern default)
+        let bitmap = null;
+        if (window.createImageBitmap) {
+            bitmap = await createImageBitmap(file).catch(() => null);
+        }
+
+        // Complete fallback logic (Old Android WebViews)
+        if (!bitmap) {
+            console.warn("createImageBitmap failed/unsupported. Halting down-res, returning original file.");
+            return file;
+        }
 
         const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d', { alpha: false }); // Optimization
+        let ctx;
+        try {
+            ctx = canvas.getContext('2d', { alpha: false });
+            if (!ctx) ctx = canvas.getContext('2d');
+        } catch (e) {
+            ctx = canvas.getContext('2d');
+        }
 
         let w = bitmap.width;
         let h = bitmap.height;
@@ -638,15 +665,22 @@ async function processImage(file, resSize, quality) {
 
         canvas.width = w;
         canvas.height = h;
-        ctx.fillStyle = 'black'; // Prevent transparency issues
-        ctx.fillRect(0, 0, w, h);
-        ctx.drawImage(bitmap, 0, 0, w, h);
 
-        if (bitmap.close) bitmap.close(); // Memory management
+        if (ctx) {
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(bitmap, 0, 0, w, h);
+        }
+
+        if (bitmap.close) bitmap.close();
 
         return new Promise(res => {
             canvas.toBlob((blob) => {
-                res(blob || file);
+                if (blob) {
+                    res(blob);
+                } else {
+                    res(file);
+                }
             }, 'image/jpeg', quality);
         });
     } catch (e) {
