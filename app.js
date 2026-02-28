@@ -477,6 +477,8 @@ async function pickExportFolder() {
         console.log("Pilih folder batal", e);
     }
 }
+// Utility: Prevent Main Thread Blocking (UI Freezing) & Allow Garbage Collection
+const yieldToMain = () => new Promise(resolve => setTimeout(resolve, 50));
 
 async function executeExport(btn) {
     const method = elements.exportMethod.value;
@@ -512,6 +514,8 @@ async function executeExport(btn) {
                     current++;
                     btn.innerText = `Render & Save ${current}/${selectedCount}...`;
 
+                    await yieldToMain(); // ANTI-FREEZE & GARBAGE COLLECTION
+
                     try {
                         const blob = await processImage(file, resSize, quality);
                         const fileHandle = await newFolder.getFileHandle(file.name, { create: true });
@@ -520,10 +524,16 @@ async function executeExport(btn) {
                         await writer.close();
                     } catch (errInner) {
                         console.error("Gagal save file:", file.name, errInner);
+                        alert(`Gagal nyimpen foto: ${file.name}`); // Explicit warning
                     }
                 }
             }
             alert("BERHASIL! Semua foto masuk ke folder: " + actualFolderName);
+
+            // Cleanup UI for Folder
+            btn.innerText = originalText;
+            btn.disabled = false;
+
         } else if (method === 'share') {
             if (!navigator.share) {
                 throw new Error("Browser/HP lu ga support fitur share langsung. Pake metode ZIP aja.");
@@ -534,17 +544,28 @@ async function executeExport(btn) {
                 if (state.selectedForExport.has(file.name)) {
                     current++;
                     btn.innerText = `Render ${current}/${selectedCount}...`;
-                    const blob = await processImage(file, resSize, quality);
-                    filesToShare.push(new File([blob], file.name, { type: 'image/jpeg' }));
+
+                    await yieldToMain(); // ANTI-FREEZE & GARBAGE COLLECTION
+
+                    try {
+                        const blob = await processImage(file, resSize, quality);
+                        filesToShare.push(new File([blob], file.name, { type: 'image/jpeg' }));
+                    } catch (errInner) {
+                        console.error("Gagal render file buat share:", file.name, errInner);
+                    }
                 }
             }
 
+            if (filesToShare.length === 0) throw new Error("Gagal render semua foto.");
+
+            // CRITICAL FIX: Don't execute the finally block immediately for Share
             btn.innerText = "KIRIM KE WA SEKARANG ✅";
             btn.style.background = "#25D366";
             btn.disabled = false;
 
             btn.onclick = async () => {
                 try {
+                    btn.innerText = "Mengirim...";
                     await navigator.share({
                         files: filesToShare,
                         title: 'Hasil Seleksi - PhotoCull Pro',
@@ -552,14 +573,15 @@ async function executeExport(btn) {
                     });
                     closeExport();
                 } catch (e) {
-                    alert("Kirim Gagal. Coba pilih dikit aja fotonya.");
+                    alert("Share Batal/Gagal: " + e.message);
                 } finally {
-                    elements.mainExportBtn.onclick = () => executeExport(elements.mainExportBtn);
-                    elements.mainExportBtn.style.background = "var(--accent)";
-                    elements.mainExportBtn.innerText = "Render";
+                    btn.onclick = () => executeExport(btn);
+                    btn.style.background = "var(--accent)";
+                    btn.innerText = "Render";
                 }
             };
-            return;
+            return; // EXIT HERE so it doesn't hit the bottom finally block
+
         } else {
             if (typeof JSZip === 'undefined') throw new Error("Library ZIP belum ke-load. Tunggu sebentar atau refresh.");
 
@@ -568,21 +590,32 @@ async function executeExport(btn) {
                 if (state.selectedForExport.has(file.name)) {
                     current++;
                     btn.innerText = `Render ${current}/${selectedCount}...`;
-                    const blob = await processImage(file, resSize, quality);
-                    zip.file(file.name, blob);
+
+                    await yieldToMain(); // ANTI-FREEZE & GARBAGE COLLECTION
+
+                    try {
+                        const blob = await processImage(file, resSize, quality);
+                        zip.file(file.name, blob);
+                    } catch (errInner) {
+                        console.error("Gagal masuk file ke ZIP:", file.name, errInner);
+                    }
                 }
             }
             btn.innerText = "Generating ZIP...";
             const content = await zip.generateAsync({ type: "blob" });
             saveAs(content, `${folderName}.zip`);
+
+            // Cleanup UI for ZIP
+            btn.innerText = originalText;
+            btn.disabled = false;
         }
         closeExport();
     } catch (err) {
         alert("Eksport Bermasalah: " + err.message);
-    } finally {
         btn.innerText = originalText;
         btn.disabled = false;
     }
+    // Removed the global 'finally' block because it broke the Share method's 2-step process.
 }
 
 async function processImage(file, resSize, quality) {
