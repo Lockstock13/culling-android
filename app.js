@@ -139,6 +139,9 @@ function setupEventListeners() {
             if (e.key === '0') setRating(0);
         }
     });
+
+    // Update path display when folder name changes
+    elements.folderNameInput.oninput = checkMethodSupport;
 }
 
 // --- Navigation Logic ---
@@ -430,12 +433,16 @@ function checkMethodSupport() {
         elements.selectedPath.style.color = "#25D366"; // WA Green
     } else if (method === 'folder') {
         if (!isSupported) {
-            elements.selectedPath.innerText = "⚠️ Android ga support pilih folder (pake ZIP/WA ya)";
+            elements.selectedPath.innerText = "⚠️ HP ga support simpen ke folder. Pake ZIP/WA ya!";
             elements.selectedPath.style.color = "#ff4b2b";
         } else {
-            elements.selectedPath.innerText = state.directoryHandle
-                ? "Target: " + state.directoryHandle.name
-                : "⚠️ Lokasi simpen belum dipilih";
+            const subFolder = elements.folderNameInput.value || "...";
+            const parentName = state.directoryHandle ? state.directoryHandle.name : "[Pilih Induk]";
+
+            elements.selectedPath.innerHTML = state.directoryHandle
+                ? `<span style="opacity:0.6">📂 ${parentName}</span> <span style="margin:0 5px">></span> 📁 <b>${subFolder}</b>`
+                : "⚠️ Lokasi simpen belum dipilih (Klik 'Pilih Lokasi')";
+
             elements.selectedPath.style.color = state.directoryHandle ? "var(--accent)" : "#ffab00";
         }
     }
