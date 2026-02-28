@@ -511,6 +511,10 @@ async function executeExport(btn) {
                 if (state.selectedForExport.has(file.name)) {
                     current++;
                     btn.innerText = `Render & Save ${current}/${selectedCount}...`;
+
+                    // Jeda sebentar biar tulisan tombol sempet ke-update di layar (Anti-Freeze UI)
+                    await new Promise(r => setTimeout(r, 50));
+
                     try {
                         const blob = await processImage(file, resSize, quality);
                         const fileHandle = await newFolder.getFileHandle(file.name, { create: true });
@@ -533,6 +537,10 @@ async function executeExport(btn) {
                 if (state.selectedForExport.has(file.name)) {
                     current++;
                     btn.innerText = `Render ${current}/${selectedCount}...`;
+
+                    // Kasih napas UI
+                    await new Promise(r => setTimeout(r, 50));
+
                     const blob = await processImage(file, resSize, quality);
                     filesToShare.push(new File([blob], file.name, { type: 'image/jpeg' }));
                 }
@@ -567,6 +575,10 @@ async function executeExport(btn) {
                 if (state.selectedForExport.has(file.name)) {
                     current++;
                     btn.innerText = `Render ${current}/${selectedCount}...`;
+
+                    // Kasih napas UI
+                    await new Promise(r => setTimeout(r, 50));
+
                     const blob = await processImage(file, resSize, quality);
                     zip.file(file.name, blob);
                 }
@@ -586,29 +598,27 @@ async function executeExport(btn) {
 
 async function processImage(file, resSize, quality) {
     try {
+        if (resSize === 'original') return file; // Bypass canvas if original size requested
+
         const bitmap = await createImageBitmap(file).catch(() => null);
         if (!bitmap) return file;
 
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d', {
             alpha: false,
-            desynchronized: true,
-            willReadFrequently: false
+            desynchronized: true
         });
 
         let w = bitmap.width;
         let h = bitmap.height;
 
-        if (resSize !== 'original') {
-            const max = parseInt(resSize);
-            if (w > h && w > max) { h = (max / w) * h; w = max; }
-            else if (h > max) { w = (max / h) * w; h = max; }
-        }
+        const max = parseInt(resSize);
+        if (w > h && w > max) { h = (max / w) * h; w = max; }
+        else if (h > max) { w = (max / h) * w; h = max; }
 
         canvas.width = w;
         canvas.height = h;
 
-        // Quality optimization
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'medium';
 
@@ -618,17 +628,21 @@ async function processImage(file, resSize, quality) {
 
         bitmap.close();
 
-        return new Promise((res) => {
+        return new Promise((res, rej) => {
             canvas.toBlob((blob) => {
-                // Aggressive Memory Cleanup
+                if (!blob) {
+                    res(file);
+                } else {
+                    res(blob);
+                }
+                // Free memory
                 canvas.width = 1;
                 canvas.height = 1;
-                res(blob || file);
             }, 'image/jpeg', quality);
         });
     } catch (e) {
         console.error("Rendering error:", e);
-        return file; // If rendering fails, always return the original file to avoid total failure
+        return file;
     }
 }
 
