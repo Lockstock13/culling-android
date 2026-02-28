@@ -1,4 +1,4 @@
-const CACHE_NAME = 'photocull-v2';
+const CACHE_NAME = 'photocull-v7-PRO'; // FORCE UPDATE CACHE
 const ASSETS = [
     './',
     'index.html',
@@ -16,7 +16,7 @@ self.addEventListener('install', (e) => {
     e.waitUntil(
         caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
     );
-    self.skipWaiting();
+    self.skipWaiting(); // Force new SW to activate immediately
 });
 
 // Activate: Cleanup old caches
@@ -30,13 +30,26 @@ self.addEventListener('activate', (e) => {
             );
         })
     );
+    self.clients.claim(); // Take control of all pages immediately 
 });
 
-// Fetch: Serve from cache, fallback to network
+// Fetch: NETWORK FIRST, Fallback to Cache (Biar update kodingan langsung masuk ke HP)
 self.addEventListener('fetch', (e) => {
     e.respondWith(
-        caches.match(e.request).then((res) => {
-            return res || fetch(e.request);
-        })
+        fetch(e.request)
+            .then((networkResponse) => {
+                // Update cache dengan yang baru dari network
+                if (e.request.method === 'GET') {
+                    const clone = networkResponse.clone();
+                    caches.open(CACHE_NAME).then(cache => {
+                        cache.put(e.request, clone);
+                    });
+                }
+                return networkResponse;
+            })
+            .catch(() => {
+                // Kalau offline, baru pake cache
+                return caches.match(e.request);
+            })
     );
 });
