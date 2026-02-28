@@ -47,9 +47,12 @@
                     onclick="document.getElementById('folder-input').click()">Pilih Folder</button>
             </div>
             <div style="margin-top: 30px; font-size: 11px; color: var(--text-dim); opacity: 0.6;">
-                PhotoCull Pro • v2.3.0-PRO-MOBILE<br>
-                Universal Resize Engine Active
+                PhotoCull Pro • v2.5.0-PRO-MOBILE<br>
+                Persistence & Reject System Active
             </div>
+            <button class="btn-main" onclick="clearPersistence()"
+                style="margin-top: 15px; background: transparent; color: var(--error); border: 1px solid var(--error); font-size: 12px; padding: 6px 12px; border-radius: 20px;">Hapus
+                Progres Terakhir 🧹</button>
             <input type="file" id="file-input" multiple accept="image/jpeg" style="display: none;">
             <input type="file" id="folder-input" webkitdirectory directory style="display: none;">
         </div>
@@ -66,6 +69,8 @@
                 <div id="view-exif" class="photo-exif">Loading EXIF...</div>
             </div>
             <div class="rating-pills" id="rating-container">
+                <div class="pill" onclick="setRating(-1)"
+                    style="color: var(--error); border-color: rgba(255,69,58,0.3)">✘</div>
                 <div class="pill" onclick="setRating(1)">1</div>
                 <div class="pill" onclick="setRating(2)">2</div>
                 <div class="pill" onclick="setRating(3)">3</div>
@@ -81,28 +86,37 @@
             <span class="filter-label">Filter Rating</span>
             <div class="filter-bar">
                 <button class="filter-pill active" onclick="setFilter(0)">Semua</button>
+                <button class="filter-pill" onclick="setFilter(-1)" style="color: var(--error)">✘ Reject</button>
                 <button class="filter-pill" onclick="setFilter(1)">⭐ 1</button>
                 <button class="filter-pill" onclick="setFilter(2)">⭐ 2</button>
                 <button class="filter-pill" onclick="setFilter(3)">⭐ 3</button>
                 <button class="filter-pill" onclick="setFilter(4)">⭐ 4</button>
                 <button class="filter-pill" onclick="setFilter(5)">⭐ 5</button>
             </div>
-        </div>
 
-        <div class="grid-container" id="grid-view"></div>
-
-        <div class="selection-controls">
-            <div style="display:flex; flex-direction:column; gap:2px">
-                <span id="filter-status" style="font-size: 16px; font-weight: 600;">0 Terpilih</span>
-                <span style="font-size: 11px; color: var(--text-dim);">Ketuk foto buat pilih</span>
-            </div>
-            <div style="display:flex; gap:10px">
-                <button onclick="toggleSelectAll()"
-                    style="background:#333; border:none; color:white; padding: 10px 15px; border-radius: 10px; font-size: 14px; font-weight: 500;">Pilih
-                    Semua</button>
-                <button onclick="handleMainAction()" class="btn-main" style="padding: 10px 25px;">Export</button>
+            <span class="filter-label" style="margin-top: 10px;">Ukuran Grid</span>
+            <div class="filter-bar">
+                <button class="filter-pill" onclick="setGridCols(2)">Besar (2)</button>
+                <button class="filter-pill active" id="grid-3-btn" onclick="setGridCols(3)">Normal (3)</button>
+                <button class="filter-pill" onclick="setGridCols(5)">Kecil (5)</button>
             </div>
         </div>
+    </div>
+
+    <div class="grid-container" id="grid-view"></div>
+
+    <div class="selection-controls">
+        <div style="display:flex; flex-direction:column; gap:2px">
+            <span id="filter-status" style="font-size: 16px; font-weight: 600;">0 Terpilih</span>
+            <span style="font-size: 11px; color: var(--text-dim);">Ketuk foto buat pilih</span>
+        </div>
+        <div style="display:flex; gap:10px">
+            <button onclick="toggleSelectAll()"
+                style="background:#333; border:none; color:white; padding: 10px 15px; border-radius: 10px; font-size: 14px; font-weight: 500;">Pilih
+                Semua</button>
+            <button onclick="handleMainAction()" class="btn-main" style="padding: 10px 25px;">Export</button>
+        </div>
+    </div>
     </div>
 
     <!-- Modal: Export -->

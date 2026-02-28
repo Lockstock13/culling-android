@@ -18,6 +18,40 @@ let state = {
     directoryHandle: null, // stored handle for folder export
 };
 
+// --- Storage Logic ---
+function savePersistence() {
+    const data = {
+        ratings: state.ratings,
+        selectedForExport: Array.from(state.selectedForExport)
+    };
+    localStorage.setItem('photocull_pro_data', JSON.stringify(data));
+}
+
+function loadPersistence() {
+    const saved = localStorage.getItem('photocull_pro_data');
+    if (saved) {
+        try {
+            const data = JSON.parse(saved);
+            state.ratings = data.ratings || {};
+            state.selectedForExport = new Set(data.selectedForExport || []);
+            showToast("Progres sebelumnya dimuat! 💾", "success");
+        } catch (e) {
+            console.error("Gagal load data:", e);
+        }
+    }
+}
+
+function clearPersistence() {
+    if (confirm("Hapus semua rating & seleksi? Ini nggak bisa di-undo, bro.")) {
+        state.ratings = {};
+        state.selectedForExport.clear();
+        localStorage.removeItem('photocull_pro_data');
+        showToast("Data dibersihkan! 🧹", "success");
+        if (state.view === 'PREVIEW') renderGrid();
+        else if (state.view === 'CULLING') updateRatingUI(0);
+    }
+}
+
 // --- DOM Elements ---
 const elements = {
     pages: document.querySelectorAll('.page'),
@@ -45,6 +79,7 @@ const elements = {
 
 // --- Initialization ---
 function init() {
+    loadPersistence();
     setupEventListeners();
     updateUI();
 }
@@ -306,24 +341,39 @@ function loadExif(file) {
 
 function setRating(val) {
     const file = state.rawFiles[state.currentIndex];
+
+    // Toggle logic: if same rating clicked, remove it (0)
+    if (state.ratings[file.name] === val) val = 0;
+
     state.ratings[file.name] = val;
     updateRatingUI(val);
+    savePersistence(); // AUTO-SAVE
 
     // Haptic feedback for rating
     if (navigator.vibrate) {
-        navigator.vibrate(val > 0 ? 50 : 20); // Stronger tap for rating, light tap for un-rating
+        if (val === -1) navigator.vibrate([30, 30, 30]); // Distinct vibrate for REJECT
+        else navigator.vibrate(val > 0 ? 50 : 20);
     }
 
-    // Auto advance if rating > 0
-    if (val > 0 && state.currentIndex < state.rawFiles.length - 1) {
-        setTimeout(() => navigatePhoto(1), 250);
+    // Auto advance if rating > 0 or Reject (tapi bukan hapus rating)
+    if (val !== 0 && state.currentIndex < state.rawFiles.length - 1) {
+        setTimeout(() => navigatePhoto(1), 200);
     }
 }
 
 function updateRatingUI(val) {
     const pills = document.querySelectorAll('.pill');
     pills.forEach((p, i) => {
-        p.classList.toggle('active', (i + 1) === val);
+        // Pill 0 is REJECT (X), Pill 1-5 are stars
+        const pillValue = i === 0 ? -1 : i;
+        p.classList.toggle('active', pillValue === val);
+
+        // Visual cue for REJECT
+        if (pillValue === -1) {
+            p.style.color = val === -1 ? '#fff' : 'var(--error)';
+            if (val === -1) p.style.background = 'var(--error)';
+            else p.style.background = 'var(--surface-overlay)';
+        }
     });
 }
 
@@ -345,10 +395,26 @@ function applyZoom(isPanning = false) {
 // --- Preview & Grid ---
 function setFilter(val) {
     state.currentFilter = val;
-    document.querySelectorAll('.filter-pill').forEach((p, i) => {
-        p.classList.toggle('active', i === val);
-    });
+    const ratingBar = document.querySelectorAll('.filter-bar')[0];
+    if (ratingBar) {
+        ratingBar.querySelectorAll('.filter-pill').forEach((p) => {
+            const isMatch = (val === 0 && p.innerText === "Semua") ||
+                (val === -1 && p.innerText.includes("✘")) ||
+                (val > 0 && p.innerText.includes(val.toString()));
+            p.classList.toggle('active', isMatch);
+        });
+    }
     renderGrid();
+}
+
+function setGridCols(n) {
+    document.documentElement.style.setProperty('--grid-cols', n);
+    const gridBar = document.querySelectorAll('.filter-bar')[1];
+    if (gridBar) {
+        gridBar.querySelectorAll('.filter-pill').forEach(p => {
+            p.classList.toggle('active', p.innerText.includes(n.toString()));
+        });
+    }
 }
 
 function renderGrid() {
@@ -356,11 +422,16 @@ function renderGrid() {
 
     const filtered = state.rawFiles.filter(f => {
         const r = state.ratings[f.name] || 0;
-        return state.currentFilter === 0 ? r > 0 : r === state.currentFilter;
+        if (state.currentFilter === 0) return r !== 0; // Show all rated/rejected
+        return r === state.currentFilter;
     });
 
     if (filtered.length === 0) {
-        const msg = state.currentFilter === 0 ? "Belum ada foto yang dirating." : `Ga ada foto bintang ⭐${state.currentFilter}.`;
+        let msg = "";
+        if (state.currentFilter === 0) msg = "Belum ada foto yang dirating.";
+        else if (state.currentFilter === -1) msg = "Bagus! Nggak ada foto yang kena Reject.";
+        else msg = `Ga ada foto bintang ⭐${state.currentFilter}.`;
+
         elements.gridView.innerHTML = `
             <div style="grid-column:1/-1; text-align:center; padding:80px 20px; color:var(--text-dim); display:flex; flex-direction:column; align-items:center; opacity:0.6; animation: fadeIn 0.5s ease-out;">
                 <div style="font-size:50px; margin-bottom:16px; width:80px; height:80px; border-radius:50%; background: #2c2c2e; display:flex; align-items:center; justify-content:center; box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);">
@@ -374,7 +445,11 @@ function renderGrid() {
 
     filtered.forEach(file => {
         const item = document.createElement('div');
+        const r = state.ratings[file.name] || 0;
         item.className = `grid-item ${state.selectedForExport.has(file.name) ? 'selected' : ''}`;
+
+        // Dim the rejected photos in grid
+        if (r === -1) item.style.opacity = "0.3";
 
         const img = document.createElement('img');
         const previewUrl = state.previews[file.name];
@@ -392,7 +467,8 @@ function renderGrid() {
 
         const badge = document.createElement('div');
         badge.className = 'rating-badge';
-        badge.innerText = `⭐ ${state.ratings[file.name]}`;
+        badge.innerText = r === -1 ? '✘ REJECT' : `⭐ ${r}`;
+        if (r === -1) badge.style.color = 'var(--error)';
 
         item.appendChild(img);
         item.appendChild(badge);
@@ -402,6 +478,7 @@ function renderGrid() {
             else state.selectedForExport.add(file.name);
             item.classList.toggle('selected');
             updateFilterStatus();
+            savePersistence(); // AUTO-SAVE selection
         };
         elements.gridView.appendChild(item);
     });
