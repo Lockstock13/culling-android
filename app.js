@@ -40,6 +40,7 @@ const elements = {
     selectedPath: document.getElementById('selected-path'),
     mainExportBtn: document.getElementById('main-export-btn'),
     btnBrowse: document.getElementById('btn-browse'),
+    resChoice: document.getElementById('res-choice'),
 };
 
 // --- Initialization ---
