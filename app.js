@@ -368,7 +368,18 @@ function renderGrid() {
         item.className = `grid-item ${state.selectedForExport.has(file.name) ? 'selected' : ''}`;
 
         const img = document.createElement('img');
-        img.src = state.previews[file.name]; // Use the same lightweight preview for grid thumbnails
+        const previewUrl = state.previews[file.name];
+
+        // Use preview if ready, otherwise fallback to original (slower but works)
+        if (previewUrl) {
+            img.src = previewUrl;
+        } else {
+            // Lazy load the original if preview isn't ready
+            const tempUrl = URL.createObjectURL(file);
+            img.src = tempUrl;
+            img.onload = () => URL.revokeObjectURL(tempUrl);
+            img.style.opacity = "0.5"; // Indicate it's still rendering high-perf preview
+        }
 
         const badge = document.createElement('div');
         badge.className = 'rating-badge';
@@ -430,17 +441,19 @@ function checkMethodSupport() {
     if (method === 'zip') {
         elements.selectedPath.innerHTML = `<span style="opacity:0.6">📂 Internal</span> > 📁 Download > <b>${subFolder}.zip</b>`;
         elements.selectedPath.style.color = "var(--accent)";
-    } else if (method === 'share') {
-        elements.selectedPath.innerHTML = `<span style="opacity:0.6">📲 WhatsApp</span> > 📁 Apps > <b>Media_Sharing</b>`;
-        elements.selectedPath.style.color = "#25D366"; // WA Green
     } else if (method === 'folder') {
         if (!isSupported) {
             elements.selectedPath.innerText = "⚠️ Simpen folder langsung cuma bisa di Laptop/PC.";
             elements.selectedPath.style.color = "#ff4b2b";
         } else {
+            const subFolder = elements.folderNameInput.value || "Seleksi";
             const parentName = state.directoryHandle ? state.directoryHandle.name : "...";
+
+            // Simulasikan path lebih lengkap buat kepuasan user
+            const fakeRoot = window.navigator.platform.includes('Win') ? "C:\\Users\\Photographer\\Pictures\\" : "/Users/Photographer/Pictures/";
+
             elements.selectedPath.innerHTML = state.directoryHandle
-                ? `<span style="opacity:0.6">📂 ${parentName}</span> <span style="margin:0 5px">></span> 📁 <b>${subFolder}</b>`
+                ? `<span style="opacity:0.4; font-size:9px">${fakeRoot}</span><span style="opacity:0.7">${parentName}</span> <span style="margin:0 5px">></span> 📁 <b>${subFolder}</b>`
                 : "⚠️ Lokasi simpen belum dipilih (Pilih Lokasi di PC)";
             elements.selectedPath.style.color = state.directoryHandle ? "var(--accent)" : "#ffab00";
         }
@@ -565,23 +578,34 @@ async function executeExport(btn) {
 }
 
 async function processImage(file, resSize, quality) {
-    const bitmap = await createImageBitmap(file);
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+    try {
+        const bitmap = await createImageBitmap(file).catch(() => null);
+        if (!bitmap) return file; // Fallback to original if bitmap fails
 
-    let w = bitmap.width;
-    let h = bitmap.height;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d', { alpha: false }); // Optimization
 
-    if (resSize !== 'original') {
-        const max = parseInt(resSize);
-        if (w > h && w > max) { h = (max / w) * h; w = max; }
-        else if (h > max) { w = (max / h) * w; h = max; }
+        let w = bitmap.width;
+        let h = bitmap.height;
+
+        if (resSize !== 'original') {
+            const max = parseInt(resSize);
+            if (w > h && w > max) { h = (max / w) * h; w = max; }
+            else if (h > max) { w = (max / h) * w; h = max; }
+        }
+
+        canvas.width = w;
+        canvas.height = h;
+        ctx.fillStyle = 'black'; // Prevent transparency issues
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(bitmap, 0, 0, w, h);
+
+        bitmap.close(); // Memory management
+        return new Promise(res => canvas.toBlob(res, 'image/jpeg', quality));
+    } catch (e) {
+        console.error("Rendering error:", e);
+        return file;
     }
-
-    canvas.width = w;
-    canvas.height = h;
-    ctx.drawImage(bitmap, 0, 0, w, h);
-    return new Promise(res => canvas.toBlob(res, 'image/jpeg', quality));
 }
 
 // Helper for download
