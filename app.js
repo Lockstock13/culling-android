@@ -425,24 +425,23 @@ function checkMethodSupport() {
     elements.btnBrowse.style.display = (method === 'folder' && isSupported) ? 'block' : 'none';
 
     // Tampilkan PATH dinamis berdasarkan metode
+    const subFolder = elements.folderNameInput.value || "Seleksi";
+
     if (method === 'zip') {
-        elements.selectedPath.innerText = "Target: Folder 'Downloads' di HP Lu 📥";
+        elements.selectedPath.innerHTML = `<span style="opacity:0.6">📂 Internal</span> > 📁 Download > <b>${subFolder}.zip</b>`;
         elements.selectedPath.style.color = "var(--accent)";
     } else if (method === 'share') {
-        elements.selectedPath.innerText = "Target: Langsung Kirim ke WhatsApp 📲";
+        elements.selectedPath.innerHTML = `<span style="opacity:0.6">📲 WhatsApp</span> > 📁 Apps > <b>Media_Sharing</b>`;
         elements.selectedPath.style.color = "#25D366"; // WA Green
     } else if (method === 'folder') {
         if (!isSupported) {
-            elements.selectedPath.innerText = "⚠️ HP ga support simpen ke folder. Pake ZIP/WA ya!";
+            elements.selectedPath.innerText = "⚠️ Simpen folder langsung cuma bisa di Laptop/PC.";
             elements.selectedPath.style.color = "#ff4b2b";
         } else {
-            const subFolder = elements.folderNameInput.value || "...";
-            const parentName = state.directoryHandle ? state.directoryHandle.name : "[Pilih Induk]";
-
+            const parentName = state.directoryHandle ? state.directoryHandle.name : "...";
             elements.selectedPath.innerHTML = state.directoryHandle
                 ? `<span style="opacity:0.6">📂 ${parentName}</span> <span style="margin:0 5px">></span> 📁 <b>${subFolder}</b>`
-                : "⚠️ Lokasi simpen belum dipilih (Klik 'Pilih Lokasi')";
-
+                : "⚠️ Lokasi simpen belum dipilih (Pilih Lokasi di PC)";
             elements.selectedPath.style.color = state.directoryHandle ? "var(--accent)" : "#ffab00";
         }
     }
