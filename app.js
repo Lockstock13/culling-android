@@ -586,24 +586,39 @@ async function executeExport(btn) {
 }
 
 async function processImage(file, resSize, quality) {
-    if (resSize === 'original') return file;
+    try {
+        if (resSize === 'original') return file;
 
-    const bitmap = await createImageBitmap(file);
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+        const bitmap = await createImageBitmap(file).catch(() => null);
+        if (!bitmap) return file; // Fallback to original if bitmap fails
 
-    let w = bitmap.width;
-    let h = bitmap.height;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d', { alpha: false }); // Optimization
 
-    const max = parseInt(resSize);
-    if (w > h && w > max) { h = (max / w) * h; w = max; }
-    else if (h > max) { w = (max / h) * w; h = max; }
+        let w = bitmap.width;
+        let h = bitmap.height;
 
-    canvas.width = w;
-    canvas.height = h;
-    ctx.drawImage(bitmap, 0, 0, w, h);
+        const max = parseInt(resSize);
+        if (w > h && w > max) { h = (max / w) * h; w = max; }
+        else if (h > max) { w = (max / h) * w; h = max; }
 
-    return new Promise(res => canvas.toBlob(res, 'image/jpeg', quality));
+        canvas.width = w;
+        canvas.height = h;
+        ctx.fillStyle = 'black'; // Prevent transparency issues
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(bitmap, 0, 0, w, h);
+
+        if (bitmap.close) bitmap.close(); // Memory management
+
+        return new Promise(res => {
+            canvas.toBlob((blob) => {
+                res(blob || file);
+            }, 'image/jpeg', quality);
+        });
+    } catch (e) {
+        console.error("Rendering error:", e);
+        return file;
+    }
 }
 
 // Helper for download
