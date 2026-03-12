@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="description"
+        content="PhotoCull Pro — Professional photo culling, rating, and export. Rate, filter, and export your best shots with IPTC metadata.">
+    <title>PhotoCull Pro — Professional Photo Culling</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon-512.png">
+    <meta name="theme-color" content="#080808">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Libraries -->
+    <script src="https://unpkg.com/hammerjs@2.0.8/hammer.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+</head>
+
+<body>
+
+    <!-- ══════════════════════════════════
+         GLOBAL: Top Navigation Bar
+    ══════════════════════════════════ -->
+    <header id="app-header">
+        <div class="nav-left">
+            <button type="button" id="btn-back" class="btn-nav btn-back" onclick="goBack()" aria-label="Go back">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+            <button type="button" id="btn-menu" class="btn-nav btn-menu" onclick="toggleDrawer()"
+                aria-label="Open menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+            <span id="step-title" class="nav-title">PhotoCull Pro</span>
+        </div>
+        <div class="nav-right">
+            <button type="button" id="btn-sort" class="btn-nav btn-sort" onclick="toggleSort()" aria-label="Sort"
+                style="display:none">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <line x1="8" y1="6" x2="21" y2="6"></line>
+                    <line x1="8" y1="12" x2="21" y2="12"></line>
+                    <line x1="8" y1="18" x2="21" y2="18"></line>
+                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                </svg>
+            </button>
+            <button type="button" class="btn-nav" onclick="toggleShortcuts()" aria-label="Keyboard shortcuts">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <rect x="2" y="6" width="20" height="12" rx="2"></rect>
+                    <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"></path>
+                </svg>
+            </button>
+        </div>
+        <div id="render-progress" class="render-progress-bar"></div>
+    </header>
+
+    <!-- ══════════════════════════════════
+         PAGE 1: IMPORT
+    ══════════════════════════════════ -->
+    <div id="import-page" class="page active">
+        <div class="import-scene">
+            <!-- Animated background grid -->
+            <div class="import-bg-grid" aria-hidden="true"></div>
+
+            <div class="import-card">
+                <div class="import-logo">
+                    <div class="logo-mark">
+                        <svg viewBox="0 0 40 40" fill="none">
+                            <rect x="4" y="10" width="32" height="24" rx="3" stroke="currentColor" stroke-width="2" />
+                            <circle cx="15" cy="22" r="5" stroke="currentColor" stroke-width="2" />
+                            <path d="M28 16l-5 6-3-3-6 7" stroke="currentColor" stroke-width="1.5"
+                                stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </div>
+                    <div class="logo-text">
+                        <span class="logo-name">PhotoCull</span>
+                        <span class="logo-edition">PRO</span>
+                    </div>
+                </div>
+
+                <p class="import-tagline">Intelligence-driven culling for elite photographers.</p>
+
+                <!-- Drop Zone -->
+                <div class="drop-zone" id="drop-zone">
+                    <div class="drop-zone__icon">
+                        <svg viewBox="0 0 64 64" fill="none">
+                            <rect x="8" y="16" width="48" height="36" rx="4" stroke="currentColor" stroke-width="2" />
+                            <path d="M8 28h48" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3" />
+                            <path d="M32 38V52M26 46l6 6 6-6" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </div>
+                    <p class="drop-zone__label">Drop photos or folder here</p>
+                    <p class="drop-zone__hint">Supports JPG, PNG, WEBP, HEIC</p>
+                </div>
+
+                <div class="import-divider"><span>or choose manually</span></div>
+
+                <div class="import-btn-group">
+                    <button type="button" class="btn-import btn-import--primary"
+                        onclick="document.getElementById('file-input').click()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                            <polyline points="21 15 16 10 5 21" />
+                        </svg>
+                        Select Photos
+                    </button>
+                    <button type="button" class="btn-import btn-import--secondary"
+                        onclick="document.getElementById('folder-input').click()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                        </svg>
+                        Open Folder
+                    </button>
+                </div>
+
+                <div class="import-footer">
+                    <span class="version-badge">v6.0.0-PRO</span>
+                    <button type="button" onclick="clearPersistence()" class="btn-link-muted">Reset Session</button>
+                </div>
+
+                <input type="file" id="file-input" multiple accept="image/*,.heic" style="display:none">
+                <input type="file" id="folder-input" webkitdirectory directory style="display:none">
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════
+         PAGE 2: EXPLORER (GRID)
+    ══════════════════════════════════ -->
+    <main id="explorer-page" class="page">
+
+        <!-- Filter Toolbar -->
+        <div class="explorer-toolbar">
+            <div class="filter-section">
+                <span class="filter-section__label">RATING</span>
+                <div class="filter-chips" id="rating-filter-bar">
+                    <button type="button" class="chip chip--active" onclick="setFilter(0)">All</button>
+                    <button type="button" class="chip chip--reject" onclick="setFilter(-1)">✘</button>
+                    <button type="button" class="chip" onclick="setFilter(1)">★1</button>
+                    <button type="button" class="chip" onclick="setFilter(2)">★2</button>
+                    <button type="button" class="chip" onclick="setFilter(3)">★3</button>
+                    <button type="button" class="chip" onclick="setFilter(4)">★4</button>
+                    <button type="button" class="chip" onclick="setFilter(5)">★5</button>
+                </div>
+            </div>
+            <div class="filter-section">
+                <span class="filter-section__label">COLOR</span>
+                <div class="filter-chips" id="color-filter-bar">
+                    <button type="button" class="chip chip--color chip--red" data-color="red"
+                        onclick="setColorFilter('red')">R</button>
+                    <button type="button" class="chip chip--color chip--yellow" data-color="yellow"
+                        onclick="setColorFilter('yellow')">Y</button>
+                    <button type="button" class="chip chip--color chip--green" data-color="green"
+                        onclick="setColorFilter('green')">G</button>
+                    <button type="button" class="chip chip--color chip--blue" data-color="blue"
+                        onclick="setColorFilter('blue')">B</button>
+                </div>
+            </div>
+            <div class="filter-section filter-section--actions">
+                <button type="button" class="btn-tool" onclick="toggleSelectAllRated()" title="Select all rated">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 11 12 14 22 4" />
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                    </svg>
+                    All Rated
+                </button>
+                <button type="button" class="btn-tool" onclick="toggleSelectAll()" title="Select current filter">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                        <polyline points="9 12 11 14 15 10" />
+                    </svg>
+                    Filter
+                </button>
+                <button type="button" class="btn-tool btn-tool--accent" onclick="quickExportByRating(4)"
+                    title="Quick-select 4★+">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon
+                            points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                    4★+
+                </button>
+            </div>
+        </div>
+
+        <!-- Grid -->
+        <div id="grid-view" class="grid-container"></div>
+
+        <!-- Floating Selection Island -->
+        <div id="selection-bar" class="selection-island">
+            <div class="selection-island__count">
+                <div id="filter-status" class="island-count-text">0 selected</div>
+                <div class="island-count-hint">Tap photo to deselect</div>
+            </div>
+            <div class="selection-island__actions">
+                <button type="button" class="btn-island-clear"
+                    onclick="state.selectedForExport.clear(); updateSelectionUI(); renderGrid();">
+                    Clear
+                </button>
+                <button type="button" class="btn-island-export" onclick="switchView('EXPORT')">
+                    Export →
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ══════════════════════════════════
+         PAGE 3: CULLING
+    ══════════════════════════════════ -->
+    <div id="culling-page" class="page">
+        <!-- Viewport -->
+        <div class="photo-viewport-container" id="viewport-container">
+            <div class="photo-viewport active" id="viewport-main">
+                <img id="view-img" src="" alt="Photo in review">
+                <div id="rating-pop" class="rating-pop" aria-hidden="true"></div>
+            </div>
+            <div class="photo-viewport" id="viewport-compare">
+                <img id="compare-img" src="" alt="Previous photo for comparison">
+            </div>
+        </div>
+
+        <!-- Overlay: top-right tools -->
+        <div class="culling-top-tools">
+            <div id="histogram-container" class="histogram-container">
+                <canvas id="histogram-canvas" aria-label="Luminosity histogram"></canvas>
+            </div>
+            <div class="culling-tool-btns">
+                <button type="button" id="btn-compare" onclick="toggleCompare()" class="cull-tool-btn"
+                    title="Compare (C)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="3" x2="12" y2="21" />
+                        <path d="M5 6l-2 2 2 2M19 6l2 2-2 2" />
+                    </svg>
+                </button>
+                <button type="button" id="btn-loupe" class="cull-tool-btn" title="Loupe (Hold Z)"
+                    onmousedown="state.isLoupeActive=true;applyLoupe()"
+                    onmouseup="state.isLoupeActive=false;resetZoom()"
+                    ontouchstart="state.isLoupeActive=true;applyLoupe()"
+                    ontouchend="state.isLoupeActive=false;resetZoom()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        <line x1="11" y1="8" x2="11" y2="14" />
+                        <line x1="8" y1="11" x2="14" y2="11" />
+                    </svg>
+                </button>
+                <button type="button" id="btn-autoadvance" onclick="toggleAutoAdvance()"
+                    class="cull-tool-btn cull-tool-btn--active" title="Auto-Advance (A)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Overlay: bottom info + controls -->
+        <div class="culling-bottom-overlay">
+            <div class="culling-meta">
+                <div id="view-filename" class="culling-filename">Filename.jpg</div>
+                <div class="culling-exif-row">
+                    <span id="view-exif" class="culling-exif">—</span>
+                    <span id="view-exif-extended" class="culling-exif culling-exif--dim"></span>
+                </div>
+                <textarea id="caption-input" class="culling-caption" placeholder="IPTC Caption…"
+                    oninput="setCaption(this.value)"></textarea>
+            </div>
+
+            <div class="culling-rating-bar">
+                <div id="rating-container" class="rating-pills">
+                    <div class="pill pill--reject" onclick="setRating(-1)" role="button" aria-label="Reject"
+                        tabindex="0">✘</div>
+                    <div class="pill" onclick="setRating(1)" role="button" aria-label="1 star" tabindex="0">1</div>
+                    <div class="pill" onclick="setRating(2)" role="button" aria-label="2 stars" tabindex="0">2</div>
+                    <div class="pill" onclick="setRating(3)" role="button" aria-label="3 stars" tabindex="0">3</div>
+                    <div class="pill" onclick="setRating(4)" role="button" aria-label="4 stars" tabindex="0">4</div>
+                    <div class="pill" onclick="setRating(5)" role="button" aria-label="5 stars" tabindex="0">5</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════
+         PAGE 4: EXPORT
+    ══════════════════════════════════ -->
+    <main id="export-page" class="page">
+        <div class="export-scroll-area">
+            <div class="export-hero">
+                <div class="export-hero__icon">
+                    <svg viewBox="0 0 48 48" fill="none">
+                        <rect x="6" y="6" width="36" height="36" rx="6" stroke="currentColor" stroke-width="2" />
+                        <path d="M16 24h16M24 16v16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="export-hero__title">Export Selection</h2>
+                    <p id="export-stats-text" class="export-hero__sub">0 photos selected</p>
+                </div>
+            </div>
+
+            <div class="export-form">
+
+                <!-- Section: Destination -->
+                <div class="export-section">
+                    <div class="export-section__label">DESTINATION</div>
+                    <div class="export-field">
+                        <label class="field-label">Storage Method</label>
+                        <select id="export-method" class="field-select" onchange="checkMethodSupport()">
+                            <option value="zip">Download as ZIP Archive</option>
+                            <option value="folder">Export to Folder (auto-named)</option>
+                            <option value="share">Share to Mobile App</option>
+                        </select>
+                    </div>
+                    <div class="export-field" id="folder-path-group">
+                        <label class="field-label">Target Location</label>
+                        <div id="selected-path" class="field-path-preview">No folder selected</div>
+                        <button type="button" id="btn-browse" class="btn-browse" onclick="pickExportFolder()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                            </svg>
+                            Choose Folder…
+                        </button>
+                    </div>
+                    <div id="method-hint" class="field-hint"></div>
+                </div>
+
+                <!-- Section: File Naming -->
+                <div class="export-section">
+                    <div class="export-section__label">FILE NAMING</div>
+                    <div class="export-field">
+                        <label class="field-label">Project / Batch Name</label>
+                        <input type="text" id="folder-name" class="field-input" value="Selection"
+                            oninput="updateRenamePreview()">
+                    </div>
+                    <div class="export-field">
+                        <label class="field-label">Filename Pattern</label>
+                        <select id="rename-pattern" class="field-select" onchange="updateRenamePreview()">
+                            <option value="original">Keep Original Filename</option>
+                            <option value="project-seq">Project + Sequence (001, 002…)</option>
+                            <option value="project-num">Project + Original Number</option>
+                        </select>
+                        <div id="rename-preview" class="field-preview">Preview: DSC_1234.jpg</div>
+                    </div>
+                </div>
+
+                <!-- Section: Quality -->
+                <div class="export-section">
+                    <div class="export-section__label">QUALITY</div>
+                    <div class="export-field-row">
+                        <div class="export-field">
+                            <label class="field-label">Resolution</label>
+                            <select id="res-choice" class="field-select">
+                                <option value="original">Original (No Resize)</option>
+                                <option value="original-q">Original + Custom Quality</option>
+                                <option value="4000">4000px (Print)</option>
+                                <option value="2500" selected>2500px (High)</option>
+                                <option value="1200">1200px (Web)</option>
+                            </select>
+                        </div>
+                        <div class="export-field">
+                            <label class="field-label">JPEG Quality %</label>
+                            <input type="number" id="quality-num" class="field-input" value="85" min="10" max="100">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Metadata -->
+                <div class="export-section">
+                    <div class="export-section__label">METADATA</div>
+                    <div class="export-field">
+                        <label class="field-label">Global Byline / Credit</label>
+                        <input type="text" id="global-byline" class="field-input"
+                            placeholder="Photographer Name / Agency">
+                    </div>
+                    <div class="export-field">
+                        <label class="toggle-label">
+                            <input type="checkbox" id="embed-metadata" checked class="toggle-checkbox">
+                            <span class="toggle-track"></span>
+                            <span class="toggle-text">Embed Ratings &amp; Captions in Photo</span>
+                        </label>
+                    </div>
+                    <div class="export-field">
+                        <label class="toggle-label">
+                            <input type="checkbox" id="include-sidecar" checked class="toggle-checkbox">
+                            <span class="toggle-track"></span>
+                            <span class="toggle-text">Create Sidecar Manifest (.txt)</span>
+                        </label>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Actions -->
+            <div class="export-cta">
+                <button type="button" class="btn-back-export" onclick="switchView('EXPLORER')">
+                    ← Back to Library
+                </button>
+                <button type="button" id="main-export-btn" class="btn-execute-export" onclick="executeExport(this)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    Generate &amp; Save
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- ══════════════════════════════════
+         OVERLAY: Analytics Drawer
+    ══════════════════════════════════ -->
+    <div id="drawer-overlay" class="drawer-overlay" onclick="toggleDrawer()"></div>
+    <nav id="side-drawer" class="side-drawer" role="navigation" aria-label="Session information">
+        <div class="drawer-header">
+            <div class="drawer-brand">
+                <span class="drawer-brand__name">PhotoCull</span>
+                <span class="drawer-brand__badge">PRO</span>
+            </div>
+            <button type="button" class="btn-close-drawer" onclick="toggleDrawer()" aria-label="Close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+        </div>
+
+        <div class="drawer-body">
+            <div class="drawer-section">
+                <div class="drawer-section__label">SESSION PROGRESS</div>
+                <div class="stats-grid">
+                    <div class="stat-block">
+                        <div id="stat-progress" class="stat-block__value stat-block__value--accent">0%</div>
+                        <div class="stat-block__label">Culled</div>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-block">
+                        <div id="stat-rated" class="stat-block__value">0</div>
+                        <div class="stat-block__label">Rated</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="drawer-section">
+                <div class="drawer-section__label">QUICK ACTIONS</div>
+                <div class="drawer-action-list">
+                    <button type="button" class="drawer-action"
+                        onclick="switchView('IMPORT'); updateUI(); toggleDrawer()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="17 8 12 3 7 8" />
+                            <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                        Import New Project
+                    </button>
+                    <button type="button" class="drawer-action drawer-action--danger"
+                        onclick="clearPersistence(); toggleDrawer()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                            <path d="M10 11v6M14 11v6" />
+                        </svg>
+                        Reset All Ratings
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="drawer-footer">
+            <span class="drawer-version">v4.5.1-ULTRA</span>
+            <span class="drawer-version-label">Elite Professional Engine</span>
+        </div>
+    </nav>
+
+    <!-- ══════════════════════════════════
+         OVERLAY: Keyboard Shortcuts
+    ══════════════════════════════════ -->
+    <div id="shortcuts-modal" class="modal-backdrop" onclick="toggleShortcuts()" role="dialog" aria-modal="true"
+        aria-label="Keyboard shortcuts">
+        <div class="modal-panel" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 class="modal-title">Keyboard Shortcuts</h3>
+                <button type="button" class="btn-close-modal" onclick="toggleShortcuts()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <div class="shortcut-grid">
+                <div class="sc-row"><kbd>1 – 5</kbd><span>Rate Photo</span></div>
+                <div class="sc-row"><kbd>0</kbd><span>Clear Rating</span></div>
+                <div class="sc-row"><kbd>X</kbd><span>Reject (✘)</span></div>
+                <div class="sc-row"><kbd>← / →</kbd><span>Navigate Photos</span></div>
+                <div class="sc-row"><kbd>R / G / Y / B</kbd><span>Color Label</span></div>
+                <div class="sc-row"><kbd>C</kbd><span>Compare Mode</span></div>
+                <div class="sc-row"><kbd>A</kbd><span>Auto-Advance</span></div>
+                <div class="sc-row"><kbd>Z (Hold)</kbd><span>100% Loupe</span></div>
+                <div class="sc-row"><kbd>Shift+Z</kbd><span>Toggle 2.5× Zoom</span></div>
+                <div class="sc-row"><kbd>?</kbd><span>Show This Panel</span></div>
+                <div class="sc-row"><kbd>Esc</kbd><span>Close / Go Back</span></div>
+            </div>
+            <button type="button" class="btn-modal-close-cta" onclick="toggleShortcuts()">Got it</button>
+        </div>
+    </div>
+
+    <!-- App Engine -->
+    <script type="module" src="js/main.js"></script>
+
+    <!-- Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log('PhotoCull Engine: Active & Offline Ready'))
+                .catch(err => console.log('SW Error', err));
+        }
+    </script>
+</body>
+
+</html>

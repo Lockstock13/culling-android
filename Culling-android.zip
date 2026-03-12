@@ -1,0 +1,64 @@
+# Implementation Plan: PhotoCull Pro (Bridge Edition)
+
+Gua bakal ngerombak kodingan lu yang "gendut" jadi modular, pro, dan kenceng banget ala Photo Mechanic. Fokus utamanya adalah **performa**, **stabilitas offline**, dan **UX yang premium**.
+
+## Phase 1: Modularization (The Foundation)
+Kita pecah satu file raksasa lu jadi bagian-bagian kecil yang rapi:
+- [index.html](file:///C:/Users/ThinkPad/Documents/Project-App/Culling-android/index.html): Kerangka aplikasi yang bersih (Main Entry).
+- [styles.css](file:///C:/Users/ThinkPad/Documents/Project-App/Culling-android/styles.css): Semua tampilan premium (Dark Mode, Glassmorphism).
+- [app.js](file:///C:/Users/ThinkPad/Documents/Project-App/Culling-android/app.js): Otak aplikasi (Logic rating, swipe, render, export).
+- [sw.js](file:///C:/Users/ThinkPad/Documents/Project-App/Culling-android/sw.js) & [manifest.json](file:///c:/Users/ThinkPad/Documents/Project-App/Culling-android/manifest.json): Biar 100% bisa install-able dan offline.
+
+## Phase 2: Professional Features (Ala Adobe Bridge)
+Kita tambahin fitur yang bikin fotografer pro ngerasa "di rumah":
+- **EXIF Reader**: Nampilin ISO, Shutter Speed, Aperture dari foto 5D Mark III lu (pake library EXIF.js).
+- **Memory Management**: Sistem otomatis hapus cache (`URL.revokeObjectURL`) biar HP lu ga nge-lag pas kurasi ratusan foto.
+- **Double-Tap Zoom**: Fitur buat cek fokus (zoom 100%) lewat ketukan jari.
+- **Lazy Loading**: Thumbnail di grid cuma dirender kalau lu scroll ke arah fotonya.
+
+## Phase 3: Export Workflow (High Performance)
+- **Direct Folder Access**: Optimasi buat browser Desktop (Chrome/Edge).
+- **Improved ZIP Library**: Proses kompresi yang lebih stabil di background.
+- **Progress Feedback**: Bar indikator pas lagi render foto (render bar).
+
+## Phase 4: PWA & Vercel Prep
+- Pastikan semua kodingan valid buat di-upload ke Vercel (HTTPS ready).
+- Sinkronisasi Service Worker biar bisa jalan offline secepat kilat.
+
+## Phase 5: Mobile Export Stability (Current Focus)
+- **Bug Fix**: Fix the `finally` block in [executeExport](file:///C:/Users/ThinkPad/Documents/Project-App/Culling-android/app.js#517-669) that inappropriately resets the button UI for the WhatsApp 'share' method.
+- **Memory Optimization**: Address Out-Of-Memory (OOM) crashes during large batch exports by employing aggressive `canvas` cleanup and safer image loading (`HTMLImageElement` fallback).
+- **UI Responsiveness**: Re-introduce a clean `setTimeout` delay between image processing loops to allow the browser's Garbage Collector to free RAM and update the UI securely.
+
+---
+
+## Phase 6: UI/UX Fluidity Enhancements (New Proposal)
+Karena secara fungsional mesin aplikasinya udah stabil total, sekarang kita fokus bikin *feel* aplikasinya sekelas aplikasi berbayar profesional di App Store / Play Store.
+
+### Proposed Changes:
+
+1. **Toast Notifications (Pengganti `alert`)**  
+   - **Masalah:** Popup `alert()` bawaan browser kerasa murah, maksa berhentiin layar, dan kaku.
+   - **Solusi:** Kita bikin Toast Notification cantik (mirip notif iPhone/Android modern) yang muncul dari bawah/atas layar sesaat lalu menghilang sendiri waktu proses render selesai atau ada error.
+
+2. **Haptic Feedback (Getaran Sentuhan)**  
+   - **Solusi:** Menggunakan `navigator.vibrate`, pas lu nge-swipe foto (Kanan/Kiri) atau pas pencet tombol Bintang/Render, HP lu bakal ngasih getaran halus sesaat. Ini bikin interaksi kerasa "hidup" dan ngasih konfirmasi ke jari lu.
+
+3. **Export Drawer (Bottom Sheet)**  
+   - **Masalah:** Modal Export di tengah layar itu kerasa kaku buat HP.
+   - **Solusi:** Kita ubah desain popup export jadi **Bottom Sheet** (laci yang meluncur dari bawah layar, ala menu Share di iOS atau app Google). Jauh lebih gampang dijangkau jempol (ergonomis) di HP kayak Xiaomi 13T lu.
+
+4. **Micro-Animations & Empty States**  
+   - **Solusi:** Tombol-tombol bakal punya animasi menyusut dikit (`transform: scale(0.96)`) pas dipencet biar empuk.
+   - **Solusi:** Pas lu filter/sort foto dan kebetulan kosong (nggak ada foto Bintang 5 misalnya), bakal muncul ilustrasi tipis/tulisan rapi "Nggak ada foto yang cocok" daripada cuma nampilin layar gelap kosong.
+
+---
+
+### Step-by-Step Task List:
+1. [x] Implement Toast Notifications to replace native `alert()` popups.
+2. [x] Add Haptic Feedback (`navigator.vibrate`) for rating and exporting actions.
+3. [x] Upgrade the Export Modal into a modern Bottom Sheet layout.
+4. [x] Add Micro-animations for buttons (`:active` scaling, smooth transitions).
+5. [x] Implement aesthetic Empty States for the grid view when no photos match a filter.
+
+**Status: Completed Phase 6 (Version 2.4.0).**
