@@ -28,6 +28,9 @@ export const state = {
     mediumPreviews: {}, // filename -> preview blob URL (1600px)
     _tempGridUrls: new Set(),
     
+    // Selection
+    selectedForExport: new Set(),
+
     // Flags
     isRenderingBackground: false,
     isNavigating: false,
