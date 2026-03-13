@@ -68,13 +68,6 @@ window.app = {
     pickExportFolder: () => pickExportFolder(),
 };
 
-// ── JIT File Resolver ──────────────────────────────────────────────────────
-export async function getFreshFile(fileOrHandle) {
-    if (fileOrHandle instanceof File) return fileOrHandle;
-    if (fileOrHandle._handle) return await fileOrHandle._handle.getFile();
-    return fileOrHandle;
-}
-
 // Global compatibility layer — all window.app methods also accessible as globals
 Object.assign(window, window.app);
 

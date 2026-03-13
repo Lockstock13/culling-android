@@ -1,9 +1,8 @@
 /**
  * PhotoCull Pro - Metadata & Thumbnail Engine
  */
-import { getShortName, yieldToMain } from './utils.js';
+import { getShortName, yieldToMain, getFreshFile } from './utils.js';
 import { state } from './state.js';
-import { getFreshFile } from '../main.js';
 
 /**
  * Partial File Metadata Scanner (Requirement #3)

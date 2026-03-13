@@ -49,3 +49,11 @@ export function showToast(message, type = 'success') {
         toast.addEventListener('animationend', () => toast.remove());
     }, 2500);
 }
+
+/** JIT File Resolver for File System Access API */
+export async function getFreshFile(fileOrHandle) {
+    if (!fileOrHandle) return fileOrHandle;
+    if (fileOrHandle instanceof File) return fileOrHandle;
+    if (fileOrHandle._handle) return await fileOrHandle._handle.getFile();
+    return fileOrHandle;
+}

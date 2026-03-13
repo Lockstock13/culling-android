@@ -3,10 +3,9 @@
  * Full port from app.js — all export logic lives here.
  */
 import { state } from './state.js';
-import { getShortName } from './utils.js';
+import { getShortName, getFreshFile } from './utils.js';
 import { processImage } from './scanner.js';
 import { elements } from '../ui/elements.js';
-import { getFreshFile } from '../main.js';
 
 // ── Utility: showToast (re-imported indirectly via window to stay decoupled) ──
 function showToast(message, type = 'success') {
