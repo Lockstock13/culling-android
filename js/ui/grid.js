@@ -41,6 +41,9 @@ export function renderGrid(isFullRebuild = false) {
     // and creating missing ones
     const fragment = document.createDocumentFragment();
     
+    // Clear parent to ensure order is preserved and no orphans
+    elements.gridView.innerHTML = '';
+    
     state.rawFiles.forEach((file, index) => {
         const key = getShortName(file);
         const isVisible = visibleKeys.has(key);
@@ -50,9 +53,6 @@ export function renderGrid(isFullRebuild = false) {
         if (!item) {
             item = createGridItem(file, index);
             gridItemCache.set(key, item);
-            fragment.appendChild(item);
-        } else {
-            // Already in DOM or at least in fragment
         }
         
         item.style.display = isVisible ? '' : 'none';
@@ -61,6 +61,9 @@ export function renderGrid(isFullRebuild = false) {
         if (isVisible) {
             syncGridItem(item, key);
         }
+        
+        // Append all items back to fragment
+        fragment.appendChild(item);
     });
 
     if (fragment.childNodes.length > 0) {
