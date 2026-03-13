@@ -141,14 +141,20 @@ export async function pickExportFolder() {
 
 // ── Metadata Injector (Adobe Bridge/Lightroom compatibility) ──────────────
 export async function injectMetadata(blob, rating, color, caption, byline) {
-    const buffer = await blob.arrayBuffer();
-    const view = new DataView(buffer);
+    // 1. Zero-copy: check SOI marker (FF D8)
+    const prefixBlob = blob.slice(0, 2);
+    const prefixBuffer = await prefixBlob.arrayBuffer();
+    const prefixView = new DataView(prefixBuffer);
 
-    if (view.getUint16(0) !== 0xFFD8) return blob;
+    if (prefixView.getUint16(0) !== 0xFFD8) {
+        console.warn('Skipping metadata: Invalid JPEG SOI.');
+        return blob;
+    }
 
+    // 2. Prepare XMP Payload
     const colorMap = { 'red': 1, 'yellow': 2, 'green': 3, 'blue': 4 };
     const urgency = colorMap[color] || 0;
-    const esc = (str) => str.replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[c]));
+    const esc = (str) => (str || '').replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[c]));
 
     const xmp = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Adobe XMP Core 5.6-c140">
@@ -159,29 +165,28 @@ export async function injectMetadata(blob, rating, color, caption, byline) {
     xmlns:dc="http://purl.org/dc/elements/1.1/"
     xmp:Rating="${rating > 0 ? rating : 0}"
     photoshop:Urgency="${urgency}">
-   <dc:description>
-    <rdf:Alt><rdf:li xml:lang="x-default">${esc(caption)}</rdf:li></rdf:Alt>
-   </dc:description>
    <dc:creator><rdf:Seq><rdf:li>${esc(byline)}</rdf:li></rdf:Seq></dc:creator>
+   <dc:description><rdf:Alt><rdf:li xml:lang="x-default">${esc(caption)}</rdf:li></rdf:Alt></dc:description>
   </rdf:Description>
  </rdf:RDF>
-</x:xmpmeta><?xpacket end="w"?>`;
+</x:xmpmeta>
+<?xpacket end="w"?>`;
 
     const xmpHeader = 'http://ns.adobe.com/xap/1.0/\0';
-    const xmpBlob = new TextEncoder().encode(xmpHeader + xmp);
-    const markerLength = xmpBlob.length + 2;
+    const xmpEncoded = new TextEncoder().encode(xmpHeader + xmp);
+    const markerLength = xmpEncoded.length + 2;
 
-    const newBuffer = new Uint8Array(buffer.byteLength + markerLength + 2);
-    newBuffer.set(new Uint8Array(buffer.slice(0, 2)), 0); // FF D8
+    // 3. Construct APP1 segment [FF E1] [Length (2 bytes)] [Payload]
+    const header = new Uint8Array(4);
+    header[0] = 0xFF;
+    header[1] = 0xE1;
+    header[2] = (markerLength >> 8) & 0xFF;
+    header[3] = markerLength & 0xFF;
 
-    newBuffer[2] = 0xFF;
-    newBuffer[3] = 0xE1;
-    newBuffer[4] = (markerLength >> 8) & 0xFF;
-    newBuffer[5] = markerLength & 0xFF;
-    newBuffer.set(xmpBlob, 6);
-    newBuffer.set(new Uint8Array(buffer.slice(2)), markerLength + 4);
+    const xmpBlobSegment = new Blob([header, xmpEncoded]);
 
-    return new Blob([newBuffer], { type: 'image/jpeg' });
+    // 4. Assemble: [SOI] + [XMP Segment] + [Original Body]
+    return new Blob([blob.slice(0, 2), xmpBlobSegment, blob.slice(2)], { type: 'image/jpeg' });
 }
 
 // ── Main Export Executor ───────────────────────────────────────────────────
