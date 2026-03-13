@@ -68,7 +68,10 @@ export function generateExportName(originalName, index, totalSelected) {
 export function updateRenamePreview() {
     if (!elements.renamePattern || !elements.folderNameInput || !elements.renamePreview) return;
     const pattern = elements.renamePattern.value;
-    const project = elements.folderNameInput.value || 'Selection';
+    const rawProject = elements.folderNameInput.value || 'Selection';
+    const projectParts = rawProject.split(/[/\\]/).filter(Boolean);
+    const project = projectParts[projectParts.length - 1] || 'Selection';
+    
     let example = 'DSC_1234.jpg';
     if (pattern === 'project-seq') example = `${project}_001.jpg`;
     else if (pattern === 'project-num') example = `${project}_1234.jpg`;

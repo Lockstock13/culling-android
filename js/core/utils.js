@@ -13,11 +13,11 @@ export function getShortName(file) {
     if (file._shortName) return file._shortName;
     const rawPath = (file.webkitRelativePath && file.webkitRelativePath.length > 0) 
         ? file.webkitRelativePath 
-        : file.name;
+        : (file.name || '');
     
-    // Split by both forward and backslashes to get the last part (filename)
-    const parts = rawPath.split(/[/\\]/);
-    return parts[parts.length - 1];
+    // Split by both forward and backslashes and filter out empty strings (trailing slashes)
+    const parts = rawPath.split(/[/\\]/).filter(p => p.trim().length > 0);
+    return parts.length > 0 ? parts[parts.length - 1] : file.name;
 }
 
 /** Natural numeric filename comparator */
