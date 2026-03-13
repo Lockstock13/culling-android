@@ -3,9 +3,13 @@
  */
 
 /** Check if a file is a supported image type */
-export function isImageFile(file) {
-    return file.type.startsWith('image/') ||
-        /\.(jpg|jpeg|png|heic|webp)$/i.test(file.name);
+export function isImageFile(fileOrName) {
+    if (!fileOrName) return false;
+    const name = typeof fileOrName === 'string' ? fileOrName : fileOrName.name;
+    const type = typeof fileOrName === 'string' ? '' : (fileOrName.type || '');
+    
+    return type.startsWith('image/') ||
+        /\.(jpg|jpeg|png|heic|webp)$/i.test(name);
 }
 
 /** Get the short display name of a file */
