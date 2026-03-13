@@ -141,61 +141,50 @@ export async function pickExportFolder() {
 
 // ── Metadata Injector (Adobe Bridge/Lightroom compatibility) ──────────────
 export async function injectMetadata(blob, rating, color, caption, byline) {
-    if (!blob || blob.size < 4) return blob; // Safety for 0-byte or corrupted blobs
+    if (!blob || blob.size < 4) return blob; 
 
-    // 1. Zero-copy check SOI marker (FF D8)
-    const prefixBlob = blob.slice(0, 2);
-    const prefixBuffer = await prefixBlob.arrayBuffer();
+    // 1. Binary-safe Check SOI
+    const prefixBuffer = await blob.slice(0, 2).arrayBuffer();
     const prefixView = new DataView(prefixBuffer);
-
-    if (prefixView.getUint16(0) !== 0xFFD8) {
-        console.warn('Skipping metadata: Invalid JPEG SOI.');
-        return blob;
-    }
+    if (prefixView.getUint16(0) !== 0xFFD8) return blob;
 
     // 2. Prepare XMP Payload
     const colorMap = { 'red': 1, 'yellow': 2, 'green': 3, 'blue': 4 };
     const urgency = colorMap[color] || 0;
-    const esc = (str) => (str || '').replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[c]));
+    const esc = (s) => (s || '').replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[c]));
 
     const xmp = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Adobe XMP Core 5.6-c140">
  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-  <rdf:Description rdf:about=""
-    xmlns:xmp="http://ns.adobe.com/xap/1.0/"
-    xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/"
-    xmlns:dc="http://purl.org/dc/elements/1.1/"
-    xmp:Rating="${rating > 0 ? rating : 0}"
-    photoshop:Urgency="${urgency}">
+  <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/"
+    xmp:Rating="${rating > 0 ? rating : 0}" photoshop:Urgency="${urgency}">
    <dc:creator><rdf:Seq><rdf:li>${esc(byline)}</rdf:li></rdf:Seq></dc:creator>
    <dc:description><rdf:Alt><rdf:li xml:lang="x-default">${esc(caption)}</rdf:li></rdf:Alt></dc:description>
   </rdf:Description>
  </rdf:RDF>
-</x:xmpmeta>
-<?xpacket end="w"?>`;
+</x:xmpmeta><?xpacket end="w"?>`;
 
-    const xmpHeader = 'http://ns.adobe.com/xap/1.0/\0';
-    const xmpEncoded = new TextEncoder().encode(xmpHeader + xmp);
-    const markerLength = xmpEncoded.length + 2;
+    // 3. Binary Assembly (Avoid TextEncoder with null bytes)
+    const xmpHeader = new TextEncoder().encode('http://ns.adobe.com/xap/1.0/\0');
+    const xmpBody = new TextEncoder().encode(xmp);
+    const totalPayload = new Uint8Array(xmpHeader.length + xmpBody.length);
+    totalPayload.set(xmpHeader);
+    totalPayload.set(xmpBody, xmpHeader.length);
 
-    if (markerLength > 65535) {
-        console.warn('XMP metadata too large for APP1 segment, skipping.');
-        return blob;
-    }
+    const markerLength = totalPayload.length + 2;
+    if (markerLength > 65535) return blob;
 
-    // 3. Construct APP1 segment [FF E1] [Length (2 bytes)] [Payload]
-    const header = new Uint8Array(4);
-    header[0] = 0xFF;
-    header[1] = 0xE1;
-    header[2] = (markerLength >> 8) & 0xFF;
-    header[3] = markerLength & 0xFF;
+    const segmentHeader = new Uint8Array(4);
+    segmentHeader[0] = 0xFF;
+    segmentHeader[1] = 0xE1;
+    segmentHeader[2] = (markerLength >> 8) & 0xFF;
+    segmentHeader[3] = markerLength & 0xFF;
 
-    const xmpBlobSegment = new Blob([header, xmpEncoded]);
-
-    // 4. Assemble: [SOI] + [XMP Segment] + [Original Body]
-    return new Blob([blob.slice(0, 2), xmpBlobSegment, blob.slice(2)], { type: 'image/jpeg' });
+    // Assemble: [SOI] + [APP1 Segment] + [Rest of Body]
+    return new Blob([blob.slice(0, 2), segmentHeader, totalPayload, blob.slice(2)], { type: 'image/jpeg' });
 }
 
+// ── Main Export Executor ───────────────────────────────────────────────────
 // ── Main Export Executor ───────────────────────────────────────────────────
 export async function executeExport(btn) {
     let method, resSize, quality, folderName, originalText;
@@ -208,11 +197,8 @@ export async function executeExport(btn) {
             ? elements.folderNameInput.value
             : 'PhotoCull_Selection';
         
-        // Final safety check for the folder/project name itself
-        const folderParts = rawFolderName.split(/[/\\]/);
-        folderName = folderParts[folderParts.length - 1] || 'PhotoCull_Selection';
+        folderName = rawFolderName.split(/[/\\]/).pop() || 'PhotoCull_Selection';
 
-        // Fallback to ZIP if folder export is not supported
         if (method === 'folder' && !('showDirectoryPicker' in window)) {
             method = 'zip';
             if (elements.exportMethod) elements.exportMethod.value = 'zip';
@@ -234,8 +220,6 @@ export async function executeExport(btn) {
     }
 
     const selectedCount = state.selectedForExport.size;
-
-    // ── Progress bar ───────────────────────────────────────────────────────
     let exportProgressBar = document.getElementById('export-progress-bar');
     if (!exportProgressBar) {
         exportProgressBar = document.createElement('div');
@@ -270,8 +254,12 @@ export async function executeExport(btn) {
 
     try {
         if (!state.rawFiles || state.rawFiles.length === 0) {
-            throw new Error('Photo data not loaded. Please re-import your photos.');
+            throw new Error('Photo data not loaded. Please re-import.');
         }
+
+        // Optimization: Map for O(1) lookup
+        const fileMap = new Map();
+        state.rawFiles.forEach(f => fileMap.set(getShortName(f), f));
 
         const items = Array.from(state.selectedForExport);
         const embedMetadata = elements.embedMetadata ? elements.embedMetadata.checked : true;
@@ -279,47 +267,27 @@ export async function executeExport(btn) {
         state.globalByline = elements.globalByline ? elements.globalByline.value : '';
         persist();
 
-        // ── Pre-create folder handle BEFORE the processing loop ────────────
         let exportFolderHandle = null;
         if (method === 'folder') {
-            if (!('showDirectoryPicker' in window)) {
-                throw new Error('Folder export requires Chrome or Edge on Desktop/Android.');
-            }
             if (!state.directoryHandle) {
-                setProgress(0, selectedCount, 'Choosing destination folder…');
                 state.directoryHandle = await window.showDirectoryPicker();
                 checkMethodSupport();
             }
-            setProgress(0, selectedCount, `Creating folder "${folderName}"…`);
             exportFolderHandle = await state.directoryHandle.getDirectoryHandle(folderName, { create: true });
         }
 
-        // ── Build sidecar manifest ─────────────────────────────────────────
-        let captionContent = `PHOTO CULL PRO - EXPORT MANIFEST\n`;
-        captionContent += `Project: ${folderName}\n`;
-        captionContent += `Byline: ${state.globalByline}\n`;
-        captionContent += `Date: ${new Date().toLocaleString()}\n`;
-        captionContent += `------------------------------------------\n\n`;
-        items.forEach((name, i) => {
-            const renamed = generateExportName(name, i, selectedCount);
-            const cap = state.captions[name];
-            if (cap || state.globalByline) {
-                captionContent += `File: ${renamed}\nOriginal: ${name}\nCaption: ${cap || '(No caption)'}\nByline: ${state.globalByline}\n\n`;
-            }
-        });
+        let captionContent = `PHOTO CULL PRO MANIFEST\nProject: ${folderName}\nDate: ${new Date().toLocaleString()}\n\n`;
 
-        // ── Parallel batch processing ──────────────────────────────────────
-        const BATCH_SIZE = 6; // Increased for better throughput
+        const BATCH_SIZE = 6;
         let zip = (method === 'zip') ? new JSZip() : null;
         const filesToShare = [];
         let doneCount = 0;
 
         for (let batchStart = 0; batchStart < items.length; batchStart += BATCH_SIZE) {
             const batch = items.slice(batchStart, batchStart + BATCH_SIZE);
-
             await Promise.all(batch.map(async (name, batchIdx) => {
                 const globalIdx = batchStart + batchIdx;
-                const file = state.rawFiles.find(f => getShortName(f) === name);
+                const file = fileMap.get(name);
                 if (!file) return;
 
                 const renamed = generateExportName(name, globalIdx, selectedCount);
@@ -327,127 +295,75 @@ export async function executeExport(btn) {
                 const color = state.colorLabels[name] || null;
                 const caption = state.captions[name] || '';
 
+                if (includeSidecar) {
+                    captionContent += `File: ${renamed}\nCaption: ${caption || '-'}\nRating: ${rating}\n\n`;
+                }
+
                 try {
                     let processedBlob = await processImage(file, resSize, quality);
+                    if (!processedBlob) throw new Error("Processing failed (empty result).");
 
                     if (embedMetadata) {
                         try {
                             processedBlob = await injectMetadata(processedBlob, rating, color, caption, state.globalByline);
-                        } catch (metaErr) {
-                            console.error('Metadata injection failed, skipping metadata:', metaErr);
-                        }
+                        } catch (mErr) { console.error('Meta error:', mErr); }
                     }
 
                     if (method === 'zip' && zip) {
                         zip.file(renamed, processedBlob);
                     } else if (method === 'folder' && exportFolderHandle) {
-                        const handle = await exportFolderHandle.getFileHandle(renamed, { create: true });
-                        const writable = await handle.createWritable();
-                        await writable.write(processedBlob);
-                        await writable.close();
+                        const h = await exportFolderHandle.getFileHandle(renamed, { create: true });
+                        const w = await h.createWritable();
+                        await w.write(processedBlob);
+                        await w.close();
                     } else if (method === 'share') {
-                        filesToShare.push(new File([processedBlob], renamed, { type: 'image/jpeg', lastModified: Date.now() }));
+                        filesToShare.push(new File([processedBlob], renamed, { type: 'image/jpeg' }));
                     }
                 } catch (errInner) {
-                    console.error('Failed to process photo:', name, errInner);
-                    showToast(`Skipped: ${name}`, 'error');
+                    console.error('File fail:', name, errInner);
+                    showToast(`⚠️ Skipped: ${name} (${errInner.message})`, 'error');
                 }
             }));
-
             doneCount += batch.length;
-            setProgress(doneCount, selectedCount, `Rendered ${doneCount} / ${selectedCount}`);
-            await new Promise(r => setTimeout(r, 0)); // Yield to UI
+            setProgress(doneCount, items.length, `Rendered ${doneCount}/${items.length}`);
         }
 
-        // ── Sidecar file ──────────────────────────────────────────────────
         if (includeSidecar) {
-            if (method === 'zip' && zip) {
-                zip.file('_captions.txt', captionContent);
-            } else if (method === 'folder' && exportFolderHandle) {
-                const handle = await exportFolderHandle.getFileHandle('_captions.txt', { create: true });
-                const writable = await handle.createWritable();
-                await writable.write(captionContent);
-                await writable.close();
+            if (method === 'zip') zip.file('_manifest.txt', captionContent);
+            else if (method === 'folder') {
+                const h = await exportFolderHandle.getFileHandle('_manifest.txt', { create: true });
+                const w = await h.createWritable();
+                await w.write(captionContent);
+                await w.close();
             }
         }
 
-        // ── Finalize per method ────────────────────────────────────────────
         if (method === 'folder') {
-            setProgress(selectedCount, selectedCount, 'Done!');
-            showToast(`✅ ${selectedCount} photos saved to "${folderName}"`, 'success');
-            setTimeout(() => { exportProgressBar.style.display = 'none'; }, 2000);
-            resetBtn();
-            if (window.app && window.app.switchView) window.app.switchView('EXPLORER');
-
+            showToast(`✅ Exported ${selectedCount} photos to folder.`, 'success');
         } else if (method === 'share') {
-            const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
-            if (!navigator.share) {
-                if (!isSecure) throw new Error('Sharing requires HTTPS. Please use ZIP method.');
-                throw new Error('Your browser does not support direct sharing. Please use ZIP method.');
-            }
-            if (selectedCount > 25) {
-                showToast('Note: Sharing >25 files at once often fails on iOS/Android. ZIP is recommended for large batches.', 'warning');
-            }
-            if (filesToShare.length === 0) throw new Error('Render Failed: No photos were processed.');
-
-            setProgress(selectedCount, selectedCount, 'Ready to share!');
-
-            // Two-step: render first, then require a fresh tap for share sheet
             if (btn) {
-                btn.innerText = 'OPEN SHARE SHEET 📲';
-                btn.style.background = '#25D366';
-                btn.style.boxShadow = '0 0 20px rgba(37, 211, 102, 0.4)';
+                btn.innerText = 'TAP TO SHARE 📲';
                 btn.disabled = false;
-                btn.onclick = async (clickEvent) => {
-                    if (clickEvent) clickEvent.preventDefault();
-                    try {
-                        btn.innerText = 'Launching...';
-                        btn.disabled = true;
-                        const shareData = {
-                            files: filesToShare,
-                            title: 'PhotoCull Selection',
-                            text: `Shared ${filesToShare.length} photos from PhotoCull Pro.`
-                        };
-                        if (navigator.canShare && !navigator.canShare(shareData)) {
-                            throw new Error('Device limit: Batch too large to share directly. Try fewer photos or use ZIP.');
-                        }
-                        await navigator.share(shareData);
-                        showToast('Share sheet opened!', 'success');
-                        exportProgressBar.style.display = 'none';
-                        if (window.app && window.app.switchView) window.app.switchView('EXPLORER');
-                    } catch (shareErr) {
-                        console.error('Share API Error:', shareErr);
-                        showToast(shareErr.message || 'Share failed or cancelled.', 'error');
-                        btn.innerText = 'RETRY SHARE 📲';
-                        btn.disabled = false;
-                    }
+                btn.onclick = async () => {
+                    await navigator.share({ files: filesToShare, title: folderName });
+                    if (window.app && window.app.switchView) window.app.switchView('EXPLORER');
                 };
             }
-            return; // Exit — share requires a second tap
-
         } else {
-            // ZIP method
-            if (typeof JSZip === 'undefined') throw new Error('ZIP library not loaded. Please wait or refresh.');
-            setProgress(selectedCount, selectedCount, 'Generating ZIP…');
-            if (btn) btn.innerText = 'Compressing ZIP…';
-
-            const content = await zip.generateAsync({
-                type: 'blob',
-                compression: 'STORE' // Changed to STORE for instant ZIP creation (JPGs are already compressed)
-            });
-
-            // saveAs from FileSaver.js
+            const content = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
             saveAs(content, `${folderName}.zip`);
-
-            setProgress(selectedCount, selectedCount, 'Done!');
-            setTimeout(() => { exportProgressBar.style.display = 'none'; }, 2000);
-            resetBtn();
-            if (window.app && window.app.switchView) window.app.switchView('EXPLORER');
+            showToast(`✅ ZIP downloaded.`, 'success');
+        }
+        
+        if (method !== 'share') {
+             resetBtn();
+             if (window.app && window.app.switchView) window.app.switchView('EXPLORER');
+             setTimeout(() => { exportProgressBar.style.display = 'none'; }, 2000);
         }
 
     } catch (err) {
-        console.error('Export error:', err);
-        showToast('Export Issue: ' + err.message, 'error');
+        console.error('Export Error:', err);
+        showToast('Export Error: ' + err.message, 'error');
         resetBtn();
         if (exportProgressBar) exportProgressBar.style.display = 'none';
     }
