@@ -3,13 +3,15 @@
  */
 import { getShortName, yieldToMain } from './utils.js';
 import { state } from './state.js';
+import { getFreshFile } from '../main.js';
 
 /**
  * Partial File Metadata Scanner (Requirement #3)
  * Reads only the first 64KB to extract EXIF and XMP.
  */
 export async function getExifMeta(file) {
-    const partialFile = file.slice(0, 65536);
+    const freshFile = await getFreshFile(file);
+    const partialFile = freshFile.slice(0, 65536);
     
     return new Promise((resolve) => {
         let isResolved = false;
@@ -86,7 +88,8 @@ async function getXmpRating(blob) {
  */
 export async function generateThumbnail(file, size = 300) {
     try {
-        const bitmap = await createImageBitmap(file, {
+        const freshFile = await getFreshFile(file);
+        const bitmap = await createImageBitmap(freshFile, {
             resizeWidth: size * 2,
             resizeQuality: 'medium'
         });
@@ -118,7 +121,8 @@ export async function generateThumbnail(file, size = 300) {
  */
 export async function processImage(file, resSize, quality) {
     try {
-        if (resSize === 'original') return file;
+        const freshFile = await getFreshFile(file);
+        if (resSize === 'original') return freshFile;
 
         let bitmap = null;
         let imgWidth, imgHeight, imgSource;

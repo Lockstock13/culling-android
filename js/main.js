@@ -68,6 +68,13 @@ window.app = {
     pickExportFolder: () => pickExportFolder(),
 };
 
+// ── JIT File Resolver ──────────────────────────────────────────────────────
+export async function getFreshFile(fileOrHandle) {
+    if (fileOrHandle instanceof File) return fileOrHandle;
+    if (fileOrHandle._handle) return await fileOrHandle._handle.getFile();
+    return fileOrHandle;
+}
+
 // Global compatibility layer — all window.app methods also accessible as globals
 Object.assign(window, window.app);
 
@@ -77,12 +84,54 @@ window.executeExport = executeExport;
 window.checkMethodSupport = checkMethodSupport;
 window.updateRenamePreview = updateRenamePreview;
 window.pickExportFolder = pickExportFolder;
+window.handleDirectoryPicker = handleDirectoryPicker;
 
 function init() {
     loadPersistence();
     setupEventListeners();
     updateUI();
     state.savePersistence = savePersistence;
+}
+
+async function handleDirectoryPicker() {
+    try {
+        const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
+        if (!dirHandle) return;
+
+        clearPreviewCaches();
+        state.directoryHandle = dirHandle;
+        
+        if (elements.folderNameInput) {
+            elements.folderNameInput.value = dirHandle.name;
+        }
+
+        const files = [];
+        for await (const entry of dirHandle.values()) {
+            if (entry.kind === 'file' && isImageFile(entry.name)) {
+                // Get initial file for metadata/thumbnails
+                const file = await entry.getFile();
+                file._handle = entry;
+                file._shortName = entry.name;
+                files.push(file);
+            }
+        }
+
+        if (files.length === 0) {
+            return showToast('No supported photos found in this folder.', 'error');
+        }
+
+        state.rawFiles = files.sort((a, b) => naturalSort(a, b));
+        switchView('EXPLORER');
+        renderGrid(true);
+        startBackgroundScan(files);
+        
+        if (window.updateRenamePreview) window.updateRenamePreview();
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            console.error('Directory access failed:', err);
+            showToast('Failed to access folder: ' + err.message, 'error');
+        }
+    }
 }
 
 function setupEventListeners() {

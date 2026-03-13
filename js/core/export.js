@@ -6,6 +6,7 @@ import { state } from './state.js';
 import { getShortName } from './utils.js';
 import { processImage } from './scanner.js';
 import { elements } from '../ui/elements.js';
+import { getFreshFile } from '../main.js';
 
 // ── Utility: showToast (re-imported indirectly via window to stay decoupled) ──
 function showToast(message, type = 'success') {
@@ -300,7 +301,8 @@ export async function executeExport(btn) {
                 }
 
                 try {
-                    let processedBlob = await processImage(file, resSize, quality);
+                    const freshFile = await getFreshFile(file);
+                    let processedBlob = await processImage(freshFile, resSize, quality);
                     if (!processedBlob) throw new Error("Processing failed (empty result).");
 
                     if (embedMetadata) {
