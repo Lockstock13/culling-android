@@ -171,7 +171,22 @@ async function handleFileUpload(e) {
 
     clearPreviewCaches();
 
+    // Auto-set Project Name from folder name if possible
+    const firstFile = files[0];
+    if (firstFile.webkitRelativePath) {
+        const parts = firstFile.webkitRelativePath.split(/[/\\]/);
+        if (parts.length > 1) {
+            const folderName = parts[0];
+            if (elements.folderNameInput) {
+                elements.folderNameInput.value = folderName;
+                // Trigger preview update
+                if (window.updateRenamePreview) window.updateRenamePreview();
+            }
+        }
+    }
+
     files.forEach(f => {
+        // Ensure f._shortName is set correctly using our utility
         f._shortName = getShortName(f);
     });
 
