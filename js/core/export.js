@@ -34,13 +34,14 @@ function persist() {
 
 // ── Generate export filename based on pattern ──────────────────────────────
 export function generateExportName(originalName, index, totalSelected) {
-    if (!elements.renamePattern || !elements.folderNameInput) return originalName;
+    // Extract basename first to ensure we never return a path
+    const parts = (originalName || '').split(/[/\\]/);
+    const basename = parts[parts.length - 1];
+
+    if (!elements.renamePattern || !elements.folderNameInput) return basename;
+    
     const pattern = elements.renamePattern.value;
     const project = elements.folderNameInput.value || 'Selection';
-
-    // Extract basename just in case originalName still contains a path
-    const parts = originalName.split(/[/\\]/);
-    const basename = parts[parts.length - 1];
 
     if (pattern === 'original') return basename;
 
@@ -286,7 +287,7 @@ export async function executeExport(btn) {
         });
 
         // ── Parallel batch processing ──────────────────────────────────────
-        const BATCH_SIZE = 4;
+        const BATCH_SIZE = 6; // Increased for better throughput
         let zip = (method === 'zip') ? new JSZip() : null;
         const filesToShare = [];
         let doneCount = 0;
@@ -410,8 +411,7 @@ export async function executeExport(btn) {
 
             const content = await zip.generateAsync({
                 type: 'blob',
-                compression: 'DEFLATE',
-                compressionOptions: { level: 3 }
+                compression: 'STORE' // Changed to STORE for instant ZIP creation (JPGs are already compressed)
             });
 
             // saveAs from FileSaver.js
