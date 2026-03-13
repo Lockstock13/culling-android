@@ -141,7 +141,9 @@ export async function pickExportFolder() {
 
 // ── Metadata Injector (Adobe Bridge/Lightroom compatibility) ──────────────
 export async function injectMetadata(blob, rating, color, caption, byline) {
-    // 1. Zero-copy: check SOI marker (FF D8)
+    if (!blob || blob.size < 4) return blob; // Safety for 0-byte or corrupted blobs
+
+    // 1. Zero-copy check SOI marker (FF D8)
     const prefixBlob = blob.slice(0, 2);
     const prefixBuffer = await prefixBlob.arrayBuffer();
     const prefixView = new DataView(prefixBuffer);
@@ -175,6 +177,11 @@ export async function injectMetadata(blob, rating, color, caption, byline) {
     const xmpHeader = 'http://ns.adobe.com/xap/1.0/\0';
     const xmpEncoded = new TextEncoder().encode(xmpHeader + xmp);
     const markerLength = xmpEncoded.length + 2;
+
+    if (markerLength > 65535) {
+        console.warn('XMP metadata too large for APP1 segment, skipping.');
+        return blob;
+    }
 
     // 3. Construct APP1 segment [FF E1] [Length (2 bytes)] [Payload]
     const header = new Uint8Array(4);
