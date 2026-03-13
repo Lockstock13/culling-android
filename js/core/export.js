@@ -41,7 +41,10 @@ export function generateExportName(originalName, index, totalSelected) {
     if (!elements.renamePattern || !elements.folderNameInput) return basename;
     
     const pattern = elements.renamePattern.value;
-    const project = elements.folderNameInput.value || 'Selection';
+    // Clean project name too - user might have manually typed a path or it could be a leftover
+    const rawProject = elements.folderNameInput.value || 'Selection';
+    const projectParts = rawProject.split(/[/\\]/);
+    const project = projectParts[projectParts.length - 1] || 'Selection';
 
     if (pattern === 'original') return basename;
 
@@ -186,9 +189,13 @@ export async function executeExport(btn) {
         method = elements.exportMethod ? elements.exportMethod.value : 'zip';
         resSize = elements.resChoice ? elements.resChoice.value : 'original';
         quality = elements.qualityNum ? (elements.qualityNum.value / 100) : 0.85;
-        folderName = (elements.folderNameInput && elements.folderNameInput.value)
+        const rawFolderName = (elements.folderNameInput && elements.folderNameInput.value)
             ? elements.folderNameInput.value
             : 'PhotoCull_Selection';
+        
+        // Final safety check for the folder/project name itself
+        const folderParts = rawFolderName.split(/[/\\]/);
+        folderName = folderParts[folderParts.length - 1] || 'PhotoCull_Selection';
 
         // Fallback to ZIP if folder export is not supported
         if (method === 'folder' && !('showDirectoryPicker' in window)) {
