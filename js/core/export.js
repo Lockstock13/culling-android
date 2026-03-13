@@ -37,11 +37,16 @@ export function generateExportName(originalName, index, totalSelected) {
     if (!elements.renamePattern || !elements.folderNameInput) return originalName;
     const pattern = elements.renamePattern.value;
     const project = elements.folderNameInput.value || 'Selection';
-    if (pattern === 'original') return originalName;
 
-    const dotIndex = originalName.lastIndexOf('.');
-    const nameOnly = dotIndex !== -1 ? originalName.substring(0, dotIndex) : originalName;
-    const ext = dotIndex !== -1 ? originalName.substring(dotIndex) : '.jpg';
+    // Extract basename just in case originalName still contains a path
+    const parts = originalName.split(/[/\\]/);
+    const basename = parts[parts.length - 1];
+
+    if (pattern === 'original') return basename;
+
+    const dotIndex = basename.lastIndexOf('.');
+    const nameOnly = dotIndex !== -1 ? basename.substring(0, dotIndex) : basename;
+    const ext = dotIndex !== -1 ? basename.substring(dotIndex) : '.jpg';
 
     if (pattern === 'project-seq') {
         const seq = (index + 1).toString().padStart(3, '0');
@@ -52,7 +57,7 @@ export function generateExportName(originalName, index, totalSelected) {
         const originalNum = match ? match[1] : (index + 1).toString();
         return `${project}_${originalNum}${ext}`;
     }
-    return originalName;
+    return basename;
 }
 
 // ── Update rename preview in export form ──────────────────────────────────

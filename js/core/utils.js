@@ -11,11 +11,13 @@ export function isImageFile(file) {
 /** Get the short display name of a file */
 export function getShortName(file) {
     if (file._shortName) return file._shortName;
-    if (file.webkitRelativePath && file.webkitRelativePath.length > 0) {
-        const parts = file.webkitRelativePath.split('/');
-        return parts[parts.length - 1];
-    }
-    return file.name;
+    const rawPath = (file.webkitRelativePath && file.webkitRelativePath.length > 0) 
+        ? file.webkitRelativePath 
+        : file.name;
+    
+    // Split by both forward and backslashes to get the last part (filename)
+    const parts = rawPath.split(/[/\\]/);
+    return parts[parts.length - 1];
 }
 
 /** Natural numeric filename comparator */
