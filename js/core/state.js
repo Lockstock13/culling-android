@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PhotoCull Pro - State Management Module
  */
 
@@ -27,6 +27,10 @@ export const state = {
     previews: {},       // filename -> thumbnail blob URL (300px)
     mediumPreviews: {}, // filename -> preview blob URL (1600px)
     _tempGridUrls: new Set(),
+    _previewOrder: [],  // LRU order of preview keys
+    _mediumOrder: [],   // LRU order of medium keys
+    maxPreviewCache: 600,
+    maxMediumCache: 120,
     
     // Selection
     selectedForExport: new Set(),
@@ -90,4 +94,36 @@ export function clearPreviewCaches() {
 
     state._tempGridUrls.forEach(url => URL.revokeObjectURL(url));
     state._tempGridUrls.clear();
+
+    state._previewOrder = [];
+    state._mediumOrder = [];
+}
+
+function touchKey(order, key) {
+    const idx = order.indexOf(key);
+    if (idx !== -1) order.splice(idx, 1);
+    order.push(key);
+}
+
+function evictLRU(map, order, max) {
+    while (order.length > max) {
+        const oldest = order.shift();
+        const url = map[oldest];
+        if (url) {
+            URL.revokeObjectURL(url);
+            delete map[oldest];
+        }
+    }
+}
+
+export function touchPreview(key) {
+    if (!key) return;
+    touchKey(state._previewOrder, key);
+    evictLRU(state.previews, state._previewOrder, state.maxPreviewCache);
+}
+
+export function touchMedium(key) {
+    if (!key) return;
+    touchKey(state._mediumOrder, key);
+    evictLRU(state.mediumPreviews, state._mediumOrder, state.maxMediumCache);
 }

@@ -1,7 +1,7 @@
-/**
+﻿/**
  * PhotoCull Pro - Culling View Module
  */
-import { state } from '../core/state.js';
+import { state, touchMedium } from '../core/state.js';
 import { elements } from './elements.js';
 import { getFileKey, getShortName, showToast } from '../core/utils.js';
 import { processImage } from '../core/scanner.js';
@@ -20,12 +20,15 @@ export async function showPhoto(index) {
         try {
             const mediumBlob = await processImage(file, 1600, 0.7);
             state.mediumPreviews[key] = URL.createObjectURL(mediumBlob);
+            touchMedium(key);
         } catch (e) {
             state.mediumPreviews[key] = URL.createObjectURL(file);
+            touchMedium(key);
         }
     }
     
     const previewUrl = state.mediumPreviews[key];
+    touchMedium(key);
     
     elements.viewImg.src = previewUrl;
     elements.fileInfo.innerText = getShortName(file);

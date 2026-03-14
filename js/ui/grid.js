@@ -1,8 +1,8 @@
-/**
+﻿/**
  * PhotoCull Pro - Grid Controller
  * Requirement #4: Avoid full grid re-renders
  */
-import { state } from '../core/state.js';
+import { state, touchPreview } from '../core/state.js';
 import { elements } from './elements.js';
 import { getFileKey, getShortName } from '../core/utils.js';
 
@@ -128,6 +128,7 @@ function syncGridItem(item, key) {
     const previewUrl = state.previews[key];
     if (previewUrl && img.src !== previewUrl) {
         img.src = previewUrl;
+        touchPreview(key);
     } else if (!previewUrl && !img.src) {
         // We set a temporary src only if no thumbnail exists yet
         // In a real high-perf app, we'd use a placeholder or the actual file URL

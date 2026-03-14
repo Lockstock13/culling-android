@@ -16,6 +16,17 @@ export function isImageFile(fileOrName) {
     }
 }
 
+/** Check if a file is an XMP sidecar */
+export function isSidecarFile(fileOrName) {
+    if (!fileOrName) return false;
+    try {
+        const name = typeof fileOrName === 'string' ? fileOrName : (fileOrName.name || '');
+        return /\.xmp$/i.test(name);
+    } catch (e) {
+        return false;
+    }
+}
+
 /** Get the short display name of a file */
 export function getShortName(file) {
     if (file._shortName) return file._shortName;

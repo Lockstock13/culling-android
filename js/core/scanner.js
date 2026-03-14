@@ -116,6 +116,56 @@ export async function generateThumbnail(file, size = 300) {
 }
 
 /**
+ * Parse XMP sidecar text for rating/label/caption/byline
+ */
+export function parseSidecarXmpText(text) {
+    const out = { rating: null, color: null, caption: null, byline: null };
+    if (!text || typeof text !== 'string') return out;
+
+    const ratingMatch =
+        text.match(/xmp:Rating=["']?(\d+)["']?/i) ||
+        text.match(/<xmp:Rating>(\d+)<\/xmp:Rating>/i) ||
+        text.match(/Rating=["']?(\d+)["']?/i);
+    if (ratingMatch && ratingMatch[1]) {
+        const r = parseInt(ratingMatch[1], 10);
+        if (r >= 1 && r <= 5) out.rating = r;
+    }
+
+    // Color label: try xmp:Label or photoshop:Urgency
+    const labelMatch = text.match(/xmp:Label=["']?([A-Za-z]+)["']?/i);
+    if (labelMatch && labelMatch[1]) {
+        const label = labelMatch[1].toLowerCase();
+        if (['red', 'yellow', 'green', 'blue'].includes(label)) out.color = label;
+    }
+    if (!out.color) {
+        const urgMatch = text.match(/photoshop:Urgency=["']?(\d+)["']?/i);
+        if (urgMatch && urgMatch[1]) {
+            const urg = parseInt(urgMatch[1], 10);
+            const map = { 1: 'red', 2: 'yellow', 3: 'green', 4: 'blue' };
+            out.color = map[urg] || null;
+        }
+    }
+
+    const captionMatch = text.match(/<dc:description>[\s\S]*?<rdf:li[^>]*>([^<]*)<\/rdf:li>/i);
+    if (captionMatch && captionMatch[1]) out.caption = captionMatch[1].trim();
+
+    const bylineMatch = text.match(/<dc:creator>[\s\S]*?<rdf:li[^>]*>([^<]*)<\/rdf:li>/i);
+    if (bylineMatch && bylineMatch[1]) out.byline = bylineMatch[1].trim();
+
+    return out;
+}
+
+export async function parseSidecarXmp(file) {
+    try {
+        const freshFile = await getFreshFile(file);
+        const text = await freshFile.text();
+        return parseSidecarXmpText(text);
+    } catch (e) {
+        return { rating: null, color: null, caption: null, byline: null };
+    }
+}
+
+/**
  * Optimized Image Processing for Previews and Export
  */
 export async function processImage(file, resSize, quality) {

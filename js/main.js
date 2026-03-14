@@ -1,11 +1,11 @@
-/**
+﻿/**
  * PhotoCull Pro - Main Application Entry Point
- * Refactored for High Performance and Modularity
+ * Refactored for High Performance and Modularity.
  */
-import { state, loadPersistence, savePersistence, clearPreviewCaches } from './core/state.js';
+import { state, loadPersistence, savePersistence, clearPreviewCaches, touchPreview, touchMedium } from './core/state.js';
 import { elements } from './ui/elements.js';
-import { isImageFile, getShortName, getFileKey, showToast, yieldToMain, naturalSort } from './core/utils.js';
-import { getExifMeta, generateThumbnail, WorkerQueue, processImage } from './core/scanner.js';
+import { isImageFile, isSidecarFile, getShortName, getFileKey, showToast, yieldToMain, naturalSort } from './core/utils.js';
+import { getExifMeta, generateThumbnail, WorkerQueue, processImage, parseSidecarXmp } from './core/scanner.js';
 import { renderGrid, updateGridItem, updateSelectionUI } from './ui/grid.js';
 import { showPhoto, setRating, updateRatingUI } from './ui/culling.js';
 import { toggleZoom, applyZoom, applyLoupe, resetZoom } from './ui/zoom.js';
@@ -112,15 +112,19 @@ async function handleDirectoryPicker() {
         const files = [];
         await collectDirFiles(dirHandle, '', files);
 
-        if (files.length === 0) {
+        const imageFiles = files.filter(isImageFile);
+        const sidecarFiles = files.filter(isSidecarFile);
+
+        if (imageFiles.length === 0) {
             return showToast('No supported photos found in this folder.', 'error');
         }
 
-        assignUniqueKeys(files);
-        state.rawFiles = files.sort((a, b) => naturalSort(a, b));
+        await applySidecarMetadata(imageFiles, sidecarFiles);
+        assignUniqueKeys(imageFiles);
+        state.rawFiles = imageFiles.sort((a, b) => naturalSort(a, b));
         switchView('EXPLORER');
         renderGrid(true);
-        startBackgroundScan(files);
+        startBackgroundScan(imageFiles);
         
         if (window.updateRenamePreview) window.updateRenamePreview();
     } catch (err) {
@@ -131,7 +135,7 @@ async function handleDirectoryPicker() {
 
 async function collectDirFiles(dirHandle, prefix, files) {
     for await (const entry of dirHandle.values()) {
-        if (entry.kind === 'file' && isImageFile(entry.name)) {
+        if (entry.kind === 'file' && (isImageFile(entry.name) || isSidecarFile(entry.name))) {
             try {
                 const file = await entry.getFile();
                 file._handle = entry;
@@ -146,6 +150,46 @@ async function collectDirFiles(dirHandle, prefix, files) {
             await collectDirFiles(entry, nextPrefix, files);
         }
     }
+}
+
+function baseNameNoExt(path) {
+    const dot = path.lastIndexOf('.');
+    return dot >= 0 ? path.substring(0, dot) : path;
+}
+
+async function applySidecarMetadata(imageFiles, sidecarFiles) {
+    if (!sidecarFiles || sidecarFiles.length === 0) return;
+
+    const sidecarMap = new Map();
+    sidecarFiles.forEach((f) => {
+        const path = f.webkitRelativePath || f._relativePath || f.name || '';
+        const key = baseNameNoExt(path).toLowerCase();
+        if (key) sidecarMap.set(key, f);
+    });
+
+    for (const img of imageFiles) {
+        const imgPath = img.webkitRelativePath || img._relativePath || img.name || '';
+        const imgKey = baseNameNoExt(imgPath).toLowerCase();
+        const sidecar = sidecarMap.get(imgKey);
+        if (!sidecar) continue;
+
+        const meta = await parseSidecarXmp(sidecar);
+        const key = getFileKey(img) || img.name;
+
+        if (meta.rating !== null && (state.ratings[key] === undefined || state.ratings[key] === 0)) {
+            state.ratings[key] = meta.rating;
+        }
+        if (meta.color && !state.colorLabels[key]) {
+            state.colorLabels[key] = meta.color;
+        }
+        if (meta.caption && !state.captions[key]) {
+            state.captions[key] = meta.caption;
+        }
+        if (meta.byline && !state.globalByline) {
+            state.globalByline = meta.byline;
+        }
+    }
+    savePersistence();
 }
 
 function setupEventListeners() {
@@ -229,7 +273,9 @@ function setupGestures() {
  * NON-BLOCKING IMPORT ENGINE
  */
 async function handleFileUpload(e) {
-    const files = Array.from(e.target.files).filter(isImageFile);
+    const allFiles = Array.from(e.target.files);
+    const files = allFiles.filter(isImageFile);
+    const sidecarFiles = allFiles.filter(isSidecarFile);
     if (files.length === 0) return;
 
     clearPreviewCaches();
@@ -248,6 +294,7 @@ async function handleFileUpload(e) {
         }
     }
 
+    await applySidecarMetadata(files, sidecarFiles);
     assignUniqueKeys(files);
 
     state.rawFiles = files.sort((a, b) => naturalSort(a, b));
@@ -316,6 +363,7 @@ async function startBackgroundScan(files) {
 
                 if (!state.previews[key]) {
                     state.previews[key] = await generateThumbnail(file);
+                    touchPreview(key);
                 }
 
                 processed++;
@@ -374,7 +422,10 @@ function navigatePhoto(dir) {
             if (!state.mediumPreviews[nextKey]) {
                 processImage(nextFile, 1600, 0.7).then(blob => {
                     state.mediumPreviews[nextKey] = URL.createObjectURL(blob);
+                    touchMedium(nextKey);
                 });
+            } else {
+                touchMedium(nextKey);
             }
         }
     }

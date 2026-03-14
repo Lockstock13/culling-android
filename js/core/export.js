@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PhotoCull Pro - Export Module
  * Full port from app.js — all export logic lives here.
  */

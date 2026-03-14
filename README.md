@@ -1,4 +1,4 @@
-# PhotoCull Pro — v6.0.0-PRO
+﻿# PhotoCull Pro — v6.0.0-PRO
 
 > **Professional photo culling, rating, and export — entirely in your browser. No uploads. No servers. No subscriptions.**
 
