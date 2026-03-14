@@ -3,7 +3,7 @@
  */
 import { state } from '../core/state.js';
 import { elements } from './elements.js';
-import { getShortName, showToast } from '../core/utils.js';
+import { getFileKey, getShortName, showToast } from '../core/utils.js';
 import { processImage } from '../core/scanner.js';
 
 import { resetZoom } from './zoom.js';
@@ -13,7 +13,7 @@ export async function showPhoto(index) {
     resetZoom();
     
     const file = state.rawFiles[index];
-    const key = getShortName(file);
+    const key = getFileKey(file);
     
     // Medium-res pre-render if not available
     if (!state.mediumPreviews[key]) {
@@ -28,7 +28,7 @@ export async function showPhoto(index) {
     const previewUrl = state.mediumPreviews[key];
     
     elements.viewImg.src = previewUrl;
-    elements.fileInfo.innerText = key;
+    elements.fileInfo.innerText = getShortName(file);
     elements.stepTitle.innerText = `Culling (${index + 1}/${state.rawFiles.length})`;
     
     elements.viewImg.onload = () => {
@@ -37,7 +37,7 @@ export async function showPhoto(index) {
 
     if (state.isCompareMode && index > 0) {
         const prevFile = state.rawFiles[index - 1];
-        const prevKey = getShortName(prevFile);
+        const prevKey = getFileKey(prevFile);
         const prevUrl = state.mediumPreviews[prevKey] || state.previews[prevKey] || URL.createObjectURL(prevFile);
         elements.compareImg.src = prevUrl;
     }
@@ -48,7 +48,7 @@ export async function showPhoto(index) {
 
 export function setRating(val) {
     const file = state.rawFiles[state.currentIndex];
-    const key = getShortName(file);
+    const key = getFileKey(file);
     
     if (state.ratings[key] === val) val = 0;
     state.ratings[key] = val;
@@ -63,7 +63,7 @@ export function setRating(val) {
 
 export function updateRatingUI() {
     const file = state.rawFiles[state.currentIndex];
-    const key = getShortName(file);
+    const key = getFileKey(file);
     const r = state.ratings[key] || 0;
     
     elements.pillContainer.querySelectorAll('.pill').forEach(p => {

@@ -1,14 +1,23 @@
-const CACHE_NAME = 'photocull-v13-SVG';
+const CACHE_NAME = 'photocull-v14-modular';
 const ASSETS = [
     './',
     'index.html',
     'styles.css',
-    'app.js',
     'manifest.json',
     'icons/icon.svg',
     'icons/icon-512.png',
+    'js/main.js',
+    'js/core/state.js',
+    'js/core/utils.js',
+    'js/core/scanner.js',
+    'js/core/export.js',
+    'js/ui/elements.js',
+    'js/ui/grid.js',
+    'js/ui/culling.js',
+    'js/ui/zoom.js',
     'https://unpkg.com/hammerjs@2.0.8/hammer.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js',
     'https://cdn.jsdelivr.net/npm/exif-js'
 ];
 

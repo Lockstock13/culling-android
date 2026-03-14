@@ -28,6 +28,16 @@ export function getShortName(file) {
     return parts.length > 0 ? parts[parts.length - 1] : file.name;
 }
 
+/** Stable unique key for state maps (prefer relative path when available) */
+export function getFileKey(file) {
+    if (!file) return '';
+    if (file._key) return file._key;
+    if (file.webkitRelativePath && file.webkitRelativePath.length > 0) return file.webkitRelativePath;
+    if (file._relativePath) return file._relativePath;
+    if (file.name) return file.name;
+    return '';
+}
+
 /** Natural numeric filename comparator */
 export function naturalSort(a, b) {
     return getShortName(a).localeCompare(getShortName(b), undefined, { numeric: true, sensitivity: 'base' });

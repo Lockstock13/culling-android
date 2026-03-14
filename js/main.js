@@ -4,7 +4,7 @@
  */
 import { state, loadPersistence, savePersistence, clearPreviewCaches } from './core/state.js';
 import { elements } from './ui/elements.js';
-import { isImageFile, getShortName, showToast, yieldToMain, naturalSort } from './core/utils.js';
+import { isImageFile, getShortName, getFileKey, showToast, yieldToMain, naturalSort } from './core/utils.js';
 import { getExifMeta, generateThumbnail, WorkerQueue, processImage } from './core/scanner.js';
 import { renderGrid, updateGridItem, updateSelectionUI } from './ui/grid.js';
 import { showPhoto, setRating, updateRatingUI } from './ui/culling.js';
@@ -110,24 +110,13 @@ async function handleDirectoryPicker() {
         }
 
         const files = [];
-        // Use more compatible iteration
-        for await (const entry of dirHandle.values()) {
-            if (entry.kind === 'file' && isImageFile(entry.name)) {
-                try {
-                    const file = await entry.getFile();
-                    file._handle = entry;
-                    file._shortName = entry.name;
-                    files.push(file);
-                } catch (cfErr) {
-                    console.warn(`Skipping file ${entry.name}:`, cfErr);
-                }
-            }
-        }
+        await collectDirFiles(dirHandle, '', files);
 
         if (files.length === 0) {
             return showToast('No supported photos found in this folder.', 'error');
         }
 
+        assignUniqueKeys(files);
         state.rawFiles = files.sort((a, b) => naturalSort(a, b));
         switchView('EXPLORER');
         renderGrid(true);
@@ -137,6 +126,25 @@ async function handleDirectoryPicker() {
     } catch (err) {
         console.error('Directory access failed:', err);
         showToast('Failed to access folder: ' + err.message, 'error');
+    }
+}
+
+async function collectDirFiles(dirHandle, prefix, files) {
+    for await (const entry of dirHandle.values()) {
+        if (entry.kind === 'file' && isImageFile(entry.name)) {
+            try {
+                const file = await entry.getFile();
+                file._handle = entry;
+                file._shortName = entry.name;
+                file._relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
+                files.push(file);
+            } catch (cfErr) {
+                console.warn(`Skipping file ${entry.name}:`, cfErr);
+            }
+        } else if (entry.kind === 'directory') {
+            const nextPrefix = prefix ? `${prefix}/${entry.name}` : entry.name;
+            await collectDirFiles(entry, nextPrefix, files);
+        }
     }
 }
 
@@ -240,10 +248,7 @@ async function handleFileUpload(e) {
         }
     }
 
-    files.forEach(f => {
-        // Ensure f._shortName is set correctly using our utility
-        f._shortName = getShortName(f);
-    });
+    assignUniqueKeys(files);
 
     state.rawFiles = files.sort((a, b) => naturalSort(a, b));
 
@@ -251,6 +256,47 @@ async function handleFileUpload(e) {
     renderGrid(true);
 
     startBackgroundScan(files);
+}
+
+function assignUniqueKeys(files) {
+    const nameCounts = new Map();
+    files.forEach((f) => {
+        const basePath = (f.webkitRelativePath && f.webkitRelativePath.length > 0)
+            ? f.webkitRelativePath
+            : (f._relativePath || f.name || '');
+        const displayName = getShortName({ name: basePath, webkitRelativePath: basePath });
+        nameCounts.set(displayName, (nameCounts.get(displayName) || 0) + 1);
+    });
+
+    const seen = new Map();
+    files.forEach((f) => {
+        const basePath = (f.webkitRelativePath && f.webkitRelativePath.length > 0)
+            ? f.webkitRelativePath
+            : (f._relativePath || f.name || '');
+        const count = seen.get(basePath) || 0;
+        seen.set(basePath, count + 1);
+        f._key = count === 0 ? basePath : `${basePath}__dup${count + 1}`;
+        if (!f._shortName) f._shortName = getShortName({ name: basePath, webkitRelativePath: basePath });
+
+        // Best-effort migration from legacy short-name keys
+        const legacyKey = f._shortName;
+        if (nameCounts.get(legacyKey) === 1) {
+            if (state.ratings[legacyKey] !== undefined && state.ratings[f._key] === undefined) {
+                state.ratings[f._key] = state.ratings[legacyKey];
+            }
+            if (state.colorLabels[legacyKey] !== undefined && state.colorLabels[f._key] === undefined) {
+                state.colorLabels[f._key] = state.colorLabels[legacyKey];
+            }
+            if (state.captions[legacyKey] !== undefined && state.captions[f._key] === undefined) {
+                state.captions[f._key] = state.captions[legacyKey];
+            }
+            if (state.selectedForExport.has(legacyKey)) {
+                state.selectedForExport.add(f._key);
+            }
+        }
+    });
+
+    savePersistence();
 }
 
 async function startBackgroundScan(files) {
@@ -262,7 +308,7 @@ async function startBackgroundScan(files) {
             try {
                 const meta = await getExifMeta(file);
                 file._date = meta.date;
-                const key = getShortName(file);
+                const key = getFileKey(file);
 
                 if (meta.rating !== null && !state.ratings[key]) {
                     state.ratings[key] = meta.rating;
@@ -324,7 +370,7 @@ function navigatePhoto(dir) {
         const nextIdx = newIdx + dir;
         if (nextIdx >= 0 && nextIdx < state.rawFiles.length) {
             const nextFile = state.rawFiles[nextIdx];
-            const nextKey = getShortName(nextFile);
+            const nextKey = getFileKey(nextFile);
             if (!state.mediumPreviews[nextKey]) {
                 processImage(nextFile, 1600, 0.7).then(blob => {
                     state.mediumPreviews[nextKey] = URL.createObjectURL(blob);
@@ -376,7 +422,7 @@ function toggleCompare() {
 function setCaption(value) {
     const file = state.rawFiles[state.currentIndex];
     if (!file) return;
-    const key = getShortName(file);
+    const key = getFileKey(file);
     state.captions[key] = value;
     savePersistence();
 }
@@ -433,18 +479,18 @@ function setColorFilter(c) {
  */
 function toggleSelectAllRated() {
     const ratedFiles = state.rawFiles.filter(f => {
-        const r = state.ratings[getShortName(f)] || 0;
+        const r = state.ratings[getFileKey(f)] || 0;
         return r > 0;
     });
     if (ratedFiles.length === 0) {
         return showToast('No rated photos found to select.', 'error');
     }
-    const allRatedSelected = ratedFiles.every(f => state.selectedForExport.has(getShortName(f)));
+    const allRatedSelected = ratedFiles.every(f => state.selectedForExport.has(getFileKey(f)));
     if (allRatedSelected) {
-        ratedFiles.forEach(f => state.selectedForExport.delete(getShortName(f)));
+        ratedFiles.forEach(f => state.selectedForExport.delete(getFileKey(f)));
         showToast('Deselected all rated photos.', 'success');
     } else {
-        ratedFiles.forEach(f => state.selectedForExport.add(getShortName(f)));
+        ratedFiles.forEach(f => state.selectedForExport.add(getFileKey(f)));
         showToast('Selected all rated photos (⭐1-5).', 'success');
     }
     renderGrid();
@@ -453,18 +499,18 @@ function toggleSelectAllRated() {
 
 function toggleSelectAll() {
     const filtered = state.rawFiles.filter(f => {
-        const key = getShortName(f);
+        const key = getFileKey(f);
         const r = state.ratings[key] || 0;
         const c = state.colorLabels[key] || null;
         if (state.colorFilter) return c === state.colorFilter;
-        if (state.filter === 0) return r !== 0;
+        if (state.filter === 0) return true;
         return r === state.filter;
     });
-    const allSelected = filtered.every(f => state.selectedForExport.has(getShortName(f)));
+    const allSelected = filtered.every(f => state.selectedForExport.has(getFileKey(f)));
     if (allSelected) {
-        filtered.forEach(f => state.selectedForExport.delete(getShortName(f)));
+        filtered.forEach(f => state.selectedForExport.delete(getFileKey(f)));
     } else {
-        filtered.forEach(f => state.selectedForExport.add(getShortName(f)));
+        filtered.forEach(f => state.selectedForExport.add(getFileKey(f)));
     }
     renderGrid();
     savePersistence();
@@ -473,7 +519,7 @@ function toggleSelectAll() {
 function quickExportByRating(minRating) {
     state.selectedForExport.clear();
     state.rawFiles.forEach(file => {
-        const key = getShortName(file);
+        const key = getFileKey(file);
         const r = state.ratings[key] || 0;
         if (r >= minRating) state.selectedForExport.add(key);
     });
@@ -524,3 +570,5 @@ function handleKeyboard(e) {
 }
 
 init();
+
+

@@ -3,7 +3,7 @@
  * Full port from app.js — all export logic lives here.
  */
 import { state } from './state.js';
-import { getShortName, getFreshFile } from './utils.js';
+import { getFileKey, getShortName, getFreshFile, yieldToMain } from './utils.js';
 import { processImage } from './scanner.js';
 import { elements } from '../ui/elements.js';
 
@@ -197,13 +197,24 @@ export async function executeExport(btn) {
             ? elements.folderNameInput.value
             : 'PhotoCull_Selection';
         
-        folderName = rawFolderName.split(/[/\\]/).pop() || 'PhotoCull_Selection';
+        folderName = rawFolderName.split(/[/\\\\]/).pop() || 'PhotoCull_Selection';
+        const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
 
         if (method === 'folder' && !('showDirectoryPicker' in window)) {
             method = 'zip';
             if (elements.exportMethod) elements.exportMethod.value = 'zip';
             showToast('📦 Folder export not supported — switched to ZIP.', 'error');
             checkMethodSupport();
+        }
+
+        if (method === 'share' && (!isSecure || !navigator.share)) {
+            return showToast(isSecure
+                ? 'Share not supported in this browser. Please use ZIP.'
+                : 'Sharing requires HTTPS. Please use ZIP.', 'error');
+        }
+
+        if (method === 'zip' && (typeof JSZip === 'undefined' || typeof saveAs === 'undefined')) {
+            return showToast('ZIP tools are not ready. Please refresh the page.', 'error');
         }
 
         if (state.selectedForExport.size === 0) {
@@ -259,7 +270,7 @@ export async function executeExport(btn) {
 
         // Optimization: Map for O(1) lookup
         const fileMap = new Map();
-        state.rawFiles.forEach(f => fileMap.set(getShortName(f), f));
+        state.rawFiles.forEach(f => fileMap.set(getFileKey(f), f));
 
         const items = Array.from(state.selectedForExport);
         const embedMetadata = elements.embedMetadata ? elements.embedMetadata.checked : true;
@@ -290,7 +301,8 @@ export async function executeExport(btn) {
                 const file = fileMap.get(name);
                 if (!file) return;
 
-                const renamed = generateExportName(name, globalIdx, selectedCount);
+                const originalName = getShortName(file);
+                const renamed = generateExportName(originalName, globalIdx, selectedCount);
                 const rating = state.ratings[name] || 0;
                 const color = state.colorLabels[name] || null;
                 const caption = state.captions[name] || '';
@@ -322,11 +334,12 @@ export async function executeExport(btn) {
                     }
                 } catch (errInner) {
                     console.error('File fail:', name, errInner);
-                    showToast(`⚠️ Skipped: ${name} (${errInner.message})`, 'error');
+                    showToast(`⚠️ Skipped: ${originalName} (${errInner.message})`, 'error');
                 }
             }));
             doneCount += batch.length;
             setProgress(doneCount, items.length, `Rendered ${doneCount}/${items.length}`);
+            await yieldToMain();
         }
 
         if (includeSidecar) {
@@ -346,8 +359,17 @@ export async function executeExport(btn) {
                 btn.innerText = 'TAP TO SHARE 📲';
                 btn.disabled = false;
                 btn.onclick = async () => {
-                    await navigator.share({ files: filesToShare, title: folderName });
-                    if (window.app && window.app.switchView) window.app.switchView('EXPLORER');
+                    try {
+                        if (navigator.canShare && !navigator.canShare({ files: filesToShare })) {
+                            showToast('This batch is too large to share directly. Try fewer photos or ZIP.', 'error');
+                            return;
+                        }
+                        await navigator.share({ files: filesToShare, title: folderName });
+                        if (window.app && window.app.switchView) window.app.switchView('EXPLORER');
+                    } catch (shareErr) {
+                        console.error('Share Error:', shareErr);
+                        showToast('Share cancelled or failed. Please try again or use ZIP.', 'error');
+                    }
                 };
             }
         } else {
@@ -369,3 +391,10 @@ export async function executeExport(btn) {
         if (exportProgressBar) exportProgressBar.style.display = 'none';
     }
 }
+
+
+
+
+
+
+

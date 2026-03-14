@@ -129,7 +129,7 @@ Four professional color labels per photo (Red, Yellow, Green, Blue), compatible 
 ```
 Culling-android/
 ├── index.html       # App shell — all pages rendered as sections
-├── app.js           # Core engine: import, culling, export, state
+├── js/              # Modular engine (import, culling, export, state)
 ├── styles.css       # Full design system + responsive mobile CSS
 ├── manifest.json    # PWA manifest (name, icons, display)
 └── sw.js            # Service Worker for offline caching
@@ -165,3 +165,4 @@ npx serve -l 3000
 
 © 2026 PhotoCull Pro. Built for photographers, by photographers.  
 All image processing happens locally — your photos never leave your device.
+

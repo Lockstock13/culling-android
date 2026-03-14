@@ -2,7 +2,7 @@
   "name": "culling-android",
   "version": "6.0.0",
   "description": "Professional photo culling, rating, and export — entirely in your browser.",
-  "main": "app.js",
+  "main": "js/main.js",
   "scripts": {
     "dev": "npx serve -l 3000",
     "start": "npx serve -l 3000"

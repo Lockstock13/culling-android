@@ -4,7 +4,7 @@
  */
 import { state } from '../core/state.js';
 import { elements } from './elements.js';
-import { getShortName } from '../core/utils.js';
+import { getFileKey, getShortName } from '../core/utils.js';
 
 const gridItemCache = new Map();
 
@@ -20,7 +20,7 @@ export function renderGrid(isFullRebuild = false) {
     }
 
     const filtered = state.rawFiles.filter(f => {
-        const key = getShortName(f);
+        const key = getFileKey(f);
         const r = state.ratings[key] || 0;
         const c = state.colorLabels[key] || null;
         if (state.colorFilter) return c === state.colorFilter;
@@ -35,7 +35,7 @@ export function renderGrid(isFullRebuild = false) {
     }
 
     // Identify which items should be visible
-    const visibleKeys = new Set(filtered.map(f => getShortName(f)));
+    const visibleKeys = new Set(filtered.map(f => getFileKey(f)));
     
     // We update the grid by showing/hiding existing elements
     // and creating missing ones
@@ -45,7 +45,7 @@ export function renderGrid(isFullRebuild = false) {
     elements.gridView.innerHTML = '';
     
     state.rawFiles.forEach((file, index) => {
-        const key = getShortName(file);
+        const key = getFileKey(file);
         const isVisible = visibleKeys.has(key);
         
         let item = gridItemCache.get(key);
@@ -84,18 +84,19 @@ export function updateGridItem(key) {
 }
 
 function createGridItem(file, index) {
-    const key = getShortName(file);
+    const key = getFileKey(file);
     const item = document.createElement('div');
     item.className = 'grid-item';
     item.dataset.key = key;
+    const displayName = getShortName(file);
     
     item.innerHTML = `
-        <img loading="lazy" src="" alt="${key}">
+        <img loading="lazy" src="" alt="${displayName}">
         <div class="grid-selection-hitbox" onclick="event.stopPropagation()">
             <div class="grid-selection-dot"></div>
         </div>
         <div class="grid-item__overlay">
-            <span class="grid-item__filename">${key}</span>
+            <span class="grid-item__filename">${displayName}</span>
         </div>
         <div class="badges-container"></div>
     `;

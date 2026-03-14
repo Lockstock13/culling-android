@@ -1,7 +1,7 @@
 /**
  * PhotoCull Pro - Metadata & Thumbnail Engine
  */
-import { getShortName, yieldToMain, getFreshFile } from './utils.js';
+import { getFreshFile } from './utils.js';
 import { state } from './state.js';
 
 /**
