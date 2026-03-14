@@ -343,9 +343,23 @@ export async function executeExport(btn) {
                             const msg = (writeErr && writeErr.message) ? writeErr.message : '';
                             const name = writeErr && writeErr.name ? writeErr.name : '';
                             if (name === 'InvalidStateError' || /state had changed since it was read/i.test(msg)) {
-                                state.directoryHandle = null;
+                                // Auto re-select destination and retry once
+                                state.directoryHandle = await window.showDirectoryPicker();
                                 checkMethodSupport();
-                                throw new Error('Folder access expired. Please choose the destination folder again.');
+                                if (state.directoryHandle && state.directoryHandle.requestPermission) {
+                                    const perm2 = await state.directoryHandle.requestPermission({ mode: 'readwrite' });
+                                    if (perm2 !== 'granted') {
+                                        state.directoryHandle = null;
+                                        checkMethodSupport();
+                                        throw new Error('Folder permission not granted. Please choose the folder again.');
+                                    }
+                                }
+                                exportFolderHandle = await state.directoryHandle.getDirectoryHandle(folderName, { create: true });
+                                const h2 = await exportFolderHandle.getFileHandle(renamed, { create: true });
+                                const w2 = await h2.createWritable();
+                                await w2.write(processedBlob);
+                                await w2.close();
+                                return;
                             }
                             throw writeErr;
                         }
