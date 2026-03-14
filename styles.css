@@ -1370,19 +1370,46 @@ body {
     padding: 0 20px;
 }
 
-.export-section {
-    padding: 20px 0;
+.export-step {
     border-bottom: 1px solid var(--border);
+    padding: 18px 0 8px;
 }
 
-.export-section__label {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1.5px;
-    color: var(--text-muted);
-    text-transform: uppercase;
+.export-step__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     margin-bottom: 14px;
-    display: block;
+}
+
+.export-step__num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    border: 1px solid rgba(255, 159, 10, 0.3);
+    color: var(--accent);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 12px;
+}
+
+.export-step__title {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+}
+
+.export-step__desc {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 2px;
+}
+
+.export-section {
+    padding: 0 0 10px;
 }
 
 .export-field {

@@ -328,91 +328,126 @@
 
             <div class="export-form">
 
-                <!-- Section: Destination -->
-                <div class="export-section">
-                    <div class="export-section__label">DESTINATION</div>
-                    <div class="export-field">
-                        <label class="field-label">Storage Method</label>
-                        <select id="export-method" class="field-select" onchange="checkMethodSupport()">
-                            <option value="zip">Download as ZIP Archive</option>
-                            <option value="folder">Export to Folder (auto-named)</option>
-                            <option value="share">Share to Mobile App</option>
-                        </select>
+                <!-- Step 1: Destination -->
+                <div class="export-step">
+                    <div class="export-step__header">
+                        <span class="export-step__num">1</span>
+                        <div>
+                            <div class="export-step__title">Destination</div>
+                            <div class="export-step__desc">Choose how and where files are saved.</div>
+                        </div>
                     </div>
-                    <div class="export-field" id="folder-path-group">
-                        <label class="field-label">Target Location</label>
-                        <div id="selected-path" class="field-path-preview">No folder selected</div>
-                        <button type="button" id="btn-browse" class="btn-browse" onclick="pickExportFolder()">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                            </svg>
-                            Choose Folder…
-                        </button>
-                    </div>
-                    <div id="method-hint" class="field-hint"></div>
-                </div>
-
-                <!-- Section: File Naming -->
-                <div class="export-section">
-                    <div class="export-section__label">FILE NAMING</div>
-                    <div class="export-field">
-                        <label class="field-label">Project / Batch Name</label>
-                        <input type="text" id="folder-name" class="field-input" value="Selection"
-                            oninput="updateRenamePreview()">
-                    </div>
-                    <div class="export-field">
-                        <label class="field-label">Filename Pattern</label>
-                        <select id="rename-pattern" class="field-select" onchange="updateRenamePreview()">
-                            <option value="original">Keep Original Filename</option>
-                            <option value="project-seq">Project + Sequence (001, 002…)</option>
-                            <option value="project-num">Project + Original Number</option>
-                        </select>
-                        <div id="rename-preview" class="field-preview">Preview: DSC_1234.jpg</div>
-                    </div>
-                </div>
-
-                <!-- Section: Quality -->
-                <div class="export-section">
-                    <div class="export-section__label">QUALITY</div>
-                    <div class="export-field-row">
+                    <div class="export-section">
                         <div class="export-field">
-                            <label class="field-label">Resolution</label>
-                            <select id="res-choice" class="field-select">
-                                <option value="original">Original (No Resize)</option>
-                                <option value="original-q">Original + Custom Quality</option>
-                                <option value="4000">4000px (Print)</option>
-                                <option value="2500" selected>2500px (High)</option>
-                                <option value="1200">1200px (Web)</option>
+                            <label class="field-label">Storage Method</label>
+                            <select id="export-method" class="field-select" onchange="checkMethodSupport()">
+                                <option value="zip">Download as ZIP Archive</option>
+                                <option value="folder">Export to Folder (auto-named)</option>
+                                <option value="share">Share to Mobile App</option>
                             </select>
                         </div>
+                        <div class="export-field" id="folder-path-group">
+                            <label class="field-label">Target Location</label>
+                            <div id="selected-path" class="field-path-preview">No folder selected</div>
+                            <button type="button" id="btn-browse" class="btn-browse" onclick="pickExportFolder()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                                </svg>
+                                Choose Folder…
+                            </button>
+                        </div>
                         <div class="export-field">
-                            <label class="field-label">JPEG Quality: <span id="quality-val">85%</span></label>
-                            <input type="range" id="quality-num" class="field-range" value="85" min="10" max="100" step="1" oninput="document.getElementById('quality-val').innerText = this.value + '%'">
+                            <label class="field-label">Export Folder / ZIP Name</label>
+                            <input type="text" id="folder-name" class="field-input" value="Selection"
+                                oninput="updateRenamePreview()">
+                            <div class="field-hint">Folder export creates a subfolder. ZIP uses this as file name.</div>
+                        </div>
+                        <div id="method-hint" class="field-hint"></div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Naming -->
+                <div class="export-step">
+                    <div class="export-step__header">
+                        <span class="export-step__num">2</span>
+                        <div>
+                            <div class="export-step__title">Filename Pattern</div>
+                            <div class="export-step__desc">Control how each file is named.</div>
+                        </div>
+                    </div>
+                    <div class="export-section">
+                        <div class="export-field">
+                            <label class="field-label">Filename Pattern</label>
+                            <select id="rename-pattern" class="field-select" onchange="updateRenamePreview()">
+                                <option value="original">Keep Original Filename</option>
+                                <option value="project-seq">Project + Sequence (001, 002…)</option>
+                                <option value="project-num">Project + Original Number</option>
+                            </select>
+                            <div id="rename-preview" class="field-preview">Preview: DSC_1234.jpg</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Section: Metadata -->
-                <div class="export-section">
-                    <div class="export-section__label">METADATA</div>
-                    <div class="export-field">
-                        <label class="field-label">Global Byline / Credit</label>
-                        <input type="text" id="global-byline" class="field-input"
-                            placeholder="Photographer Name / Agency">
+                <!-- Step 3: Quality -->
+                <div class="export-step">
+                    <div class="export-step__header">
+                        <span class="export-step__num">3</span>
+                        <div>
+                            <div class="export-step__title">Quality</div>
+                            <div class="export-step__desc">Choose resolution and compression.</div>
+                        </div>
                     </div>
-                    <div class="export-field">
-                        <label class="toggle-label">
-                            <input type="checkbox" id="embed-metadata" checked class="toggle-checkbox">
-                            <span class="toggle-track"></span>
-                            <span class="toggle-text">Embed Ratings &amp; Captions in Photo</span>
-                        </label>
+                    <div class="export-section">
+                        <div class="export-field-row">
+                            <div class="export-field">
+                                <label class="field-label">Resolution</label>
+                                <select id="res-choice" class="field-select">
+                                    <option value="original">Original (No Resize)</option>
+                                    <option value="original-q">Original + Custom Quality</option>
+                                    <option value="4000">4000px (Print)</option>
+                                    <option value="2500" selected>2500px (High)</option>
+                                    <option value="1200">1200px (Web)</option>
+                                </select>
+                                <div class="field-hint">Choose lower resolutions for faster transfer.</div>
+                            </div>
+                            <div class="export-field">
+                                <label class="field-label">JPEG Quality: <span id="quality-val">85%</span></label>
+                                <input type="range" id="quality-num" class="field-range" value="85" min="10" max="100" step="1" oninput="document.getElementById('quality-val').innerText = this.value + '%'">
+                                <div class="field-hint">Lower quality = smaller size, faster sharing.</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="export-field">
-                        <label class="toggle-label">
-                            <input type="checkbox" id="include-sidecar" checked class="toggle-checkbox">
-                            <span class="toggle-track"></span>
-                            <span class="toggle-text">Create Sidecar Manifest (.txt)</span>
-                        </label>
+                </div>
+
+                <!-- Step 4: Metadata -->
+                <div class="export-step">
+                    <div class="export-step__header">
+                        <span class="export-step__num">4</span>
+                        <div>
+                            <div class="export-step__title">Metadata</div>
+                            <div class="export-step__desc">Embed ratings, captions, and credits.</div>
+                        </div>
+                    </div>
+                    <div class="export-section">
+                        <div class="export-field">
+                            <label class="field-label">Global Byline / Credit</label>
+                            <input type="text" id="global-byline" class="field-input"
+                                placeholder="Photographer Name / Agency">
+                        </div>
+                        <div class="export-field">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="embed-metadata" checked class="toggle-checkbox">
+                                <span class="toggle-track"></span>
+                                <span class="toggle-text">Embed Ratings &amp; Captions in Photo</span>
+                            </label>
+                        </div>
+                        <div class="export-field">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="include-sidecar" checked class="toggle-checkbox">
+                                <span class="toggle-track"></span>
+                                <span class="toggle-text">Create Sidecar Manifest (.txt)</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
 
