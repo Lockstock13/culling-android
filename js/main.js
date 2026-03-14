@@ -20,7 +20,8 @@ import {
 /**
  * REFACTORED CONCURRENCY
  */
-const scannerQueue = new WorkerQueue(12);
+const thumbQueue = new WorkerQueue(16);
+const metaQueue = new WorkerQueue(8);
 
 /**
  * Expose showToast globally so export.js can use it via window._showToast
@@ -349,11 +350,29 @@ function assignUniqueKeys(files) {
 }
 
 async function startBackgroundScan(files) {
-    let processed = 0;
+    let thumbsDone = 0;
+    let metaDone = 0;
     const total = files.length;
 
     for (const file of files) {
-        scannerQueue.add(async () => {
+        thumbQueue.add(async () => {
+            try {
+                const key = getFileKey(file);
+                if (!state.previews[key]) {
+                    state.previews[key] = await generateThumbnail(file);
+                    touchPreview(key);
+                }
+                updateGridItem(key);
+                thumbsDone++;
+                if (thumbsDone < total) {
+                    setImportProgress(thumbsDone, total, 'Rendering previews…', `Meta ${metaDone}/${total}`);
+                } else if (metaDone < total) {
+                    setImportProgress(metaDone, total, 'Scanning metadata…');
+                }
+            } catch (err) { console.error(err); }
+        });
+
+        metaQueue.add(async () => {
             try {
                 const meta = await getExifMeta(file);
                 file._date = meta.date;
@@ -362,25 +381,25 @@ async function startBackgroundScan(files) {
                 if (meta.rating !== null && !state.ratings[key]) {
                     state.ratings[key] = meta.rating;
                 }
-
-                if (!state.previews[key]) {
-                    state.previews[key] = await generateThumbnail(file);
-                    touchPreview(key);
+                metaDone++;
+                elements.stepTitle.innerText = `Library (${metaDone}/${total})`;
+                if (thumbsDone < total) {
+                    // Metadata is running in background while thumbnails load
+                    setImportProgress(thumbsDone, total, 'Rendering previews…', `Meta ${metaDone}/${total}`);
+                } else {
+                    setImportProgress(metaDone, total, 'Scanning metadata…');
                 }
-
-                processed++;
-                elements.stepTitle.innerText = `Library (${processed}/${total})`;
-                setImportProgress(processed, total, 'Scanning metadata…');
                 updateGridItem(key);
 
-                if (processed % 20 === 0) await yieldToMain();
-                if (processed === total) {
+                if (metaDone % 20 === 0) await yieldToMain();
+                if (metaDone === total) {
                     setImportProgress(total, total, 'Metadata ready');
                     setTimeout(() => setImportProgress(0, 0, ''), 1200);
                 }
             } catch (err) { console.error(err); }
         });
     }
+
 }
 
 function switchView(v) {
@@ -485,7 +504,7 @@ function setCaption(value) {
     scheduleSave();
 }
 
-function setImportProgress(done, total, label) {
+function setImportProgress(done, total, label, detail) {
     if (!elements.renderProgress) return;
     const bar = elements.renderProgress;
     if (total > 0) {
@@ -493,7 +512,9 @@ function setImportProgress(done, total, label) {
         bar.style.width = `${pct}%`;
         bar.style.opacity = '1';
         if (elements.importStatus) {
-            elements.importStatus.innerText = `${label} ${done}/${total}`;
+            elements.importStatus.innerText = detail
+                ? `${label} ${done}/${total} • ${detail}`
+                : `${label} ${done}/${total}`;
         }
     } else {
         bar.style.width = '0%';
