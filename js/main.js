@@ -87,8 +87,19 @@ function init() {
 }
 
 async function handleDirectoryPicker() {
+    // 1. Check for API support (requires HTTPS or Localhost)
+    if (!window.showDirectoryPicker) {
+        console.warn("showDirectoryPicker not supported, falling back to traditional input.");
+        if (elements.folderInput) elements.folderInput.click();
+        else showToast('Folder access not supported in this browser. Use "Select Photos".', 'error');
+        return;
+    }
+
     try {
-        const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
+        const dirHandle = await window.showDirectoryPicker({ mode: 'read' }).catch(e => {
+            if (e.name === 'AbortError') return null;
+            throw e;
+        });
         if (!dirHandle) return;
 
         clearPreviewCaches();
@@ -99,13 +110,17 @@ async function handleDirectoryPicker() {
         }
 
         const files = [];
+        // Use more compatible iteration
         for await (const entry of dirHandle.values()) {
             if (entry.kind === 'file' && isImageFile(entry.name)) {
-                // Get initial file for metadata/thumbnails
-                const file = await entry.getFile();
-                file._handle = entry;
-                file._shortName = entry.name;
-                files.push(file);
+                try {
+                    const file = await entry.getFile();
+                    file._handle = entry;
+                    file._shortName = entry.name;
+                    files.push(file);
+                } catch (cfErr) {
+                    console.warn(`Skipping file ${entry.name}:`, cfErr);
+                }
             }
         }
 
@@ -120,10 +135,8 @@ async function handleDirectoryPicker() {
         
         if (window.updateRenamePreview) window.updateRenamePreview();
     } catch (err) {
-        if (err.name !== 'AbortError') {
-            console.error('Directory access failed:', err);
-            showToast('Failed to access folder: ' + err.message, 'error');
-        }
+        console.error('Directory access failed:', err);
+        showToast('Failed to access folder: ' + err.message, 'error');
     }
 }
 
