@@ -1,7 +1,7 @@
 ﻿/**
  * PhotoCull Pro - Culling View Module
  */
-import { state, touchMedium } from '../core/state.js';
+import { state, touchMedium, scheduleSave } from '../core/state.js';
 import { elements } from './elements.js';
 import { getFileKey, getShortName, showToast } from '../core/utils.js';
 import { processImage } from '../core/scanner.js';
@@ -57,7 +57,7 @@ export function setRating(val) {
     state.ratings[key] = val;
     
     updateRatingUI();
-    state.savePersistence();
+    scheduleSave();
     
     if (state.autoAdvance && val !== 0 && state.currentIndex < state.rawFiles.length - 1) {
         setTimeout(() => window.app.navigatePhoto(1), 200);
@@ -75,6 +75,10 @@ export function updateRatingUI() {
         else val = parseInt(p.innerText);
         p.classList.toggle('active', r === val);
     });
+
+    if (elements.cullingRatingDisplay) {
+        elements.cullingRatingDisplay.innerText = r === -1 ? '✘' : (r === 0 ? '—' : `★ ${r}`);
+    }
 }
 
 function loadExif(file) {

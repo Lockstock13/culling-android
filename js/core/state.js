@@ -44,6 +44,8 @@ export const state = {
     directoryHandle: null,
 };
 
+let saveTimer = null;
+
 export function savePersistence() {
     localStorage.setItem('photocull_ratings', JSON.stringify(state.ratings));
     localStorage.setItem('photocull_colorLabels', JSON.stringify(state.colorLabels));
@@ -59,6 +61,14 @@ export function savePersistence() {
         sortMode: state.sortMode
     };
     localStorage.setItem('photocull_pro_data', JSON.stringify(data));
+}
+
+export function scheduleSave(delayMs = 200) {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+        savePersistence();
+        saveTimer = null;
+    }, delayMs);
 }
 
 export function loadPersistence() {

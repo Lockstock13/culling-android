@@ -2,7 +2,7 @@
  * PhotoCull Pro - Main Application Entry Point
  * Refactored for High Performance and Modularity.
  */
-import { state, loadPersistence, savePersistence, clearPreviewCaches, touchPreview, touchMedium } from './core/state.js';
+import { state, loadPersistence, savePersistence, scheduleSave, clearPreviewCaches, touchPreview, touchMedium } from './core/state.js';
 import { elements } from './ui/elements.js';
 import { isImageFile, isSidecarFile, getShortName, getFileKey, showToast, yieldToMain, naturalSort } from './core/utils.js';
 import { getExifMeta, generateThumbnail, WorkerQueue, processImage, parseSidecarXmp } from './core/scanner.js';
@@ -103,6 +103,7 @@ async function handleDirectoryPicker() {
         if (!dirHandle) return;
 
         clearPreviewCaches();
+        setImportProgress(0, 0, 'Preparing import…');
         state.directoryHandle = dirHandle;
         
         if (elements.folderNameInput) {
@@ -279,6 +280,7 @@ async function handleFileUpload(e) {
     if (files.length === 0) return;
 
     clearPreviewCaches();
+    setImportProgress(0, 0, 'Preparing import…');
 
     // Auto-set Project Name from folder name if possible
     const firstFile = files[0];
@@ -368,9 +370,14 @@ async function startBackgroundScan(files) {
 
                 processed++;
                 elements.stepTitle.innerText = `Library (${processed}/${total})`;
+                setImportProgress(processed, total, 'Scanning metadata…');
                 updateGridItem(key);
 
                 if (processed % 20 === 0) await yieldToMain();
+                if (processed === total) {
+                    setImportProgress(total, total, 'Metadata ready');
+                    setTimeout(() => setImportProgress(0, 0, ''), 1200);
+                }
             } catch (err) { console.error(err); }
         });
     }
@@ -475,7 +482,25 @@ function setCaption(value) {
     if (!file) return;
     const key = getFileKey(file);
     state.captions[key] = value;
-    savePersistence();
+    scheduleSave();
+}
+
+function setImportProgress(done, total, label) {
+    if (!elements.renderProgress) return;
+    const bar = elements.renderProgress;
+    if (total > 0) {
+        const pct = Math.min(100, Math.round((done / total) * 100));
+        bar.style.width = `${pct}%`;
+        bar.style.opacity = '1';
+        if (elements.importStatus) {
+            elements.importStatus.innerText = `${label} ${done}/${total}`;
+        }
+    } else {
+        bar.style.width = '0%';
+        bar.style.opacity = '0';
+        if (elements.importStatus && label) elements.importStatus.innerText = label;
+        else if (elements.importStatus) elements.importStatus.innerText = '';
+    }
 }
 
 /**

@@ -251,6 +251,9 @@ export async function executeExport(btn) {
         if (progressFill) progressFill.style.width = `${pct}%`;
         if (progressLabel) progressLabel.innerText = label || `${done} / ${total}`;
         if (btn) btn.innerText = label || `${done}/${total}…`;
+        if (elements.exportStatusText) {
+            elements.exportStatusText.innerText = label || `Processing ${done}/${total}`;
+        }
     };
 
     const resetBtn = () => {
@@ -388,6 +391,7 @@ export async function executeExport(btn) {
 
         if (method === 'folder') {
             showToast(`✅ Exported ${selectedCount} photos to folder.`, 'success');
+            if (elements.exportStatusText) elements.exportStatusText.innerText = 'Export complete';
         } else if (method === 'share') {
             if (btn) {
                 btn.innerText = 'TAP TO SHARE 📲';
@@ -400,9 +404,11 @@ export async function executeExport(btn) {
                         }
                         await navigator.share({ files: filesToShare, title: folderName });
                         if (window.app && window.app.switchView) window.app.switchView('EXPLORER');
+                        if (elements.exportStatusText) elements.exportStatusText.innerText = 'Share sheet opened';
                     } catch (shareErr) {
                         console.error('Share Error:', shareErr);
                         showToast('Share cancelled or failed. Please try again or use ZIP.', 'error');
+                        if (elements.exportStatusText) elements.exportStatusText.innerText = 'Share failed';
                     }
                 };
             }
@@ -410,6 +416,7 @@ export async function executeExport(btn) {
             const content = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
             saveAs(content, `${folderName}.zip`);
             showToast(`✅ ZIP downloaded.`, 'success');
+            if (elements.exportStatusText) elements.exportStatusText.innerText = 'Export complete';
         }
         
         if (method !== 'share') {

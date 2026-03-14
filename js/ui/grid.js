@@ -150,6 +150,9 @@ export function updateSelectionUI() {
     const count = state.selectedForExport.size;
     if (elements.filterStatus) elements.filterStatus.innerText = `${count} selected`;
     if (elements.exportStatsText) elements.exportStatsText.innerText = `${count} selected for export`;
+    if (elements.exportStatusText && count > 0) {
+        elements.exportStatusText.innerText = 'Ready to export';
+    }
     if (elements.selectionBar) {
         elements.selectionBar.classList.toggle('active', count > 0 && state.view === 'EXPLORER');
     }

@@ -139,6 +139,7 @@
                     </button>
                 </div>
 
+                <div id="import-status" class="import-status"></div>
                 <div class="import-footer">
                     <span class="version-badge">v6.0.0-PRO</span>
                     <button type="button" onclick="clearPersistence()" class="btn-link-muted">Reset Session</button>
@@ -218,9 +219,9 @@
                 <div class="island-count-hint">Tap photo to deselect</div>
             </div>
             <div class="selection-island__actions">
-                <button type="button" class="btn-island-clear"
+                <button type="button" class="btn-island-clear" title="Clear selection"
                     onclick="state.selectedForExport.clear(); updateSelectionUI(); renderGrid();">
-                    Clear
+                    Clear Selection
                 </button>
                 <button type="button" class="btn-island-export" onclick="switchView('EXPORT')">
                     Export →
@@ -287,6 +288,7 @@
                     <span id="view-exif" class="culling-exif">—</span>
                     <span id="view-exif-extended" class="culling-exif culling-exif--dim"></span>
                 </div>
+                <div id="culling-rating-display" class="culling-rating-display">—</div>
                 <textarea id="caption-input" class="culling-caption" placeholder="IPTC Caption…"
                     oninput="setCaption(this.value)"></textarea>
             </div>
@@ -320,6 +322,7 @@
                 <div>
                     <h2 class="export-hero__title">Export Selection</h2>
                     <p id="export-stats-text" class="export-hero__sub">0 photos selected</p>
+                    <p id="export-status-text" class="export-hero__status">Ready to export</p>
                 </div>
             </div>
 
