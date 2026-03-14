@@ -199,6 +199,7 @@ export async function executeExport(btn) {
         
         folderName = rawFolderName.split(/[/\\\\]/).pop() || 'PhotoCull_Selection';
         const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+        const isAndroid = /Android/i.test(navigator.userAgent);
 
         if (method === 'folder' && !('showDirectoryPicker' in window)) {
             method = 'zip';
@@ -280,6 +281,28 @@ export async function executeExport(btn) {
         return state.directoryHandle;
     };
 
+    const armFolderRetry = () => {
+        if (!btn) return;
+        btn.innerText = 'CHOOSE FOLDER & RETRY';
+        btn.disabled = false;
+        btn.style.background = '';
+        btn.style.boxShadow = '';
+        btn.onclick = async (e) => {
+            if (e) e.preventDefault();
+            try {
+                await requestFolderFromUser();
+                btn.onclick = (ev) => executeExport(ev.currentTarget);
+                executeExport(btn);
+            } catch (retryErr) {
+                console.error('Retry folder error:', retryErr);
+                showToast(retryErr.message || 'Folder selection cancelled.', 'error');
+                if (elements.exportStatusText) {
+                    elements.exportStatusText.innerText = retryErr.message || 'Folder selection cancelled';
+                }
+            }
+        };
+    };
+
     try {
         if (!state.rawFiles || state.rawFiles.length === 0) {
             throw new Error('Photo data not loaded. Please re-import.');
@@ -297,7 +320,9 @@ export async function executeExport(btn) {
 
         let exportFolderHandle = null;
         if (method === 'folder') {
-            if (!state.directoryHandle) {
+            // Android: always request folder at export time to avoid stale handles
+            if (isAndroid || !state.directoryHandle) {
+                state.directoryHandle = null;
                 await requestFolderFromUser();
             }
             // Ensure permission is still valid (Android Chrome can invalidate handles)
@@ -361,10 +386,7 @@ export async function executeExport(btn) {
                             if (name === 'InvalidStateError' || /state had changed since it was read/i.test(msg)) {
                                 state.directoryHandle = null;
                                 checkMethodSupport();
-                                if (btn) {
-                                    btn.innerText = 'CHOOSE FOLDER & RETRY';
-                                    btn.disabled = false;
-                                }
+                                armFolderRetry();
                                 throw new Error('Folder access expired. Tap the button to choose a folder again.');
                             }
                             throw writeErr;
