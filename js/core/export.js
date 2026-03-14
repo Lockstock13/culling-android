@@ -266,6 +266,20 @@ export async function executeExport(btn) {
         }
     };
 
+    const requestFolderFromUser = async () => {
+        state.directoryHandle = await window.showDirectoryPicker();
+        checkMethodSupport();
+        if (state.directoryHandle && state.directoryHandle.requestPermission) {
+            const perm = await state.directoryHandle.requestPermission({ mode: 'readwrite' });
+            if (perm !== 'granted') {
+                state.directoryHandle = null;
+                checkMethodSupport();
+                throw new Error('Folder permission not granted. Please choose the folder again.');
+            }
+        }
+        return state.directoryHandle;
+    };
+
     try {
         if (!state.rawFiles || state.rawFiles.length === 0) {
             throw new Error('Photo data not loaded. Please re-import.');
@@ -284,8 +298,7 @@ export async function executeExport(btn) {
         let exportFolderHandle = null;
         if (method === 'folder') {
             if (!state.directoryHandle) {
-                state.directoryHandle = await window.showDirectoryPicker();
-                checkMethodSupport();
+                await requestFolderFromUser();
             }
             // Ensure permission is still valid (Android Chrome can invalidate handles)
             if (state.directoryHandle && state.directoryHandle.requestPermission) {
@@ -346,23 +359,13 @@ export async function executeExport(btn) {
                             const msg = (writeErr && writeErr.message) ? writeErr.message : '';
                             const name = writeErr && writeErr.name ? writeErr.name : '';
                             if (name === 'InvalidStateError' || /state had changed since it was read/i.test(msg)) {
-                                // Auto re-select destination and retry once
-                                state.directoryHandle = await window.showDirectoryPicker();
+                                state.directoryHandle = null;
                                 checkMethodSupport();
-                                if (state.directoryHandle && state.directoryHandle.requestPermission) {
-                                    const perm2 = await state.directoryHandle.requestPermission({ mode: 'readwrite' });
-                                    if (perm2 !== 'granted') {
-                                        state.directoryHandle = null;
-                                        checkMethodSupport();
-                                        throw new Error('Folder permission not granted. Please choose the folder again.');
-                                    }
+                                if (btn) {
+                                    btn.innerText = 'CHOOSE FOLDER & RETRY';
+                                    btn.disabled = false;
                                 }
-                                exportFolderHandle = await state.directoryHandle.getDirectoryHandle(folderName, { create: true });
-                                const h2 = await exportFolderHandle.getFileHandle(renamed, { create: true });
-                                const w2 = await h2.createWritable();
-                                await w2.write(processedBlob);
-                                await w2.close();
-                                return;
+                                throw new Error('Folder access expired. Tap the button to choose a folder again.');
                             }
                             throw writeErr;
                         }
@@ -428,6 +431,9 @@ export async function executeExport(btn) {
     } catch (err) {
         console.error('Export Error:', err);
         showToast('Export Error: ' + err.message, 'error');
+        if (elements.exportStatusText) {
+            elements.exportStatusText.innerText = err && err.message ? err.message : 'Export failed';
+        }
         resetBtn();
         if (exportProgressBar) exportProgressBar.style.display = 'none';
     }
