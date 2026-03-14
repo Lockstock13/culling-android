@@ -284,6 +284,15 @@ export async function executeExport(btn) {
                 state.directoryHandle = await window.showDirectoryPicker();
                 checkMethodSupport();
             }
+            // Ensure permission is still valid (Android Chrome can invalidate handles)
+            if (state.directoryHandle && state.directoryHandle.requestPermission) {
+                const perm = await state.directoryHandle.requestPermission({ mode: 'readwrite' });
+                if (perm !== 'granted') {
+                    state.directoryHandle = null;
+                    checkMethodSupport();
+                    throw new Error('Folder permission not granted. Please choose the folder again.');
+                }
+            }
             exportFolderHandle = await state.directoryHandle.getDirectoryHandle(folderName, { create: true });
         }
 
@@ -325,10 +334,21 @@ export async function executeExport(btn) {
                     if (method === 'zip' && zip) {
                         zip.file(renamed, processedBlob);
                     } else if (method === 'folder' && exportFolderHandle) {
-                        const h = await exportFolderHandle.getFileHandle(renamed, { create: true });
-                        const w = await h.createWritable();
-                        await w.write(processedBlob);
-                        await w.close();
+                        try {
+                            const h = await exportFolderHandle.getFileHandle(renamed, { create: true });
+                            const w = await h.createWritable();
+                            await w.write(processedBlob);
+                            await w.close();
+                        } catch (writeErr) {
+                            const msg = (writeErr && writeErr.message) ? writeErr.message : '';
+                            const name = writeErr && writeErr.name ? writeErr.name : '';
+                            if (name === 'InvalidStateError' || /state had changed since it was read/i.test(msg)) {
+                                state.directoryHandle = null;
+                                checkMethodSupport();
+                                throw new Error('Folder access expired. Please choose the destination folder again.');
+                            }
+                            throw writeErr;
+                        }
                     } else if (method === 'share') {
                         filesToShare.push(new File([processedBlob], renamed, { type: 'image/jpeg' }));
                     }
