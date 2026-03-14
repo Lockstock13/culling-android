@@ -1,4 +1,4 @@
-const CACHE_NAME = 'photocull-v14-modular';
+const CACHE_NAME = 'photocull-v15-modular';
 const ASSETS = [
     './',
     'index.html',
