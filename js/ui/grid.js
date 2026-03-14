@@ -2,7 +2,7 @@
  * PhotoCull Pro - Grid Controller
  * Requirement #4: Avoid full grid re-renders
  */
-import { state, touchPreview } from '../core/state.js';
+import { state, touchPreview, scheduleSave } from '../core/state.js';
 import { elements } from './elements.js';
 import { getFileKey, getShortName } from '../core/utils.js';
 
@@ -138,7 +138,8 @@ function syncGridItem(item, key) {
     let badgesHtml = '';
     if (r !== 0) {
         const badgeText = r === -1 ? '✘' : `⭐ ${r}`;
-        badgesHtml += `<div class="rating-badge">${badgeText}</div>`;
+        const badgeClass = r === -1 ? 'rating-badge rating-badge--reject' : 'rating-badge';
+        badgesHtml += `<div class="${badgeClass}">${badgeText}</div>`;
     }
     if (c) {
         badgesHtml += `<div class="color-badge color-badge--${c}"></div>`;
@@ -166,5 +167,5 @@ function toggleFileSelection(key) {
     }
     updateGridItem(key);
     updateSelectionUI();
-    state.savePersistence();
+    scheduleSave();
 }
